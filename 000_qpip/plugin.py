@@ -58,12 +58,13 @@ class Plugin:
         self.iface.addPluginToMenu("Python dependencies (QPIP)", self.show_action)
 
     def initComplete(self):
-        QgsMessageLog.logMessage(
-            f"Initialization complete. Loading {self._defered_packages=}", "Plugins"
-        )
         self._init_complete = True
-        for defered_package in self._defered_packages:
-            self.patched_load_plugin(defered_package, also_start=True)
+        if self._defered_packages:
+            QgsMessageLog.logMessage(
+                f"Initialization complete. Loading deferred packages", "Plugins"
+            )
+            for defered_package in self._defered_packages:
+                self.patched_load_plugin(defered_package, also_start=True)
         self._defered_packages = []
 
     def unload(self):
@@ -101,9 +102,10 @@ class Plugin:
 
             with open(requirements_path, "r") as f:
                 requirements = pkg_resources.parse_requirements(f)
+                working_set = pkg_resources.WorkingSet()
                 for requirement in requirements:
                     try:
-                        pkg_resources.require(str(requirement))
+                        working_set.require(str(requirement))
                     except pkg_resources.DistributionNotFound as e:
                         missing_deps[str(requirement)] = "missing"
                     except pkg_resources.VersionConflict as e:
