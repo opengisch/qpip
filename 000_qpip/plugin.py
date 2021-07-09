@@ -1,11 +1,12 @@
 import os
 import subprocess
 import sys
+from importlib import metadata
 
 import pkg_resources
 from PyQt5 import uic
 from qgis import utils
-from qgis.core import QgsApplication, QgsMessageLog
+from qgis.core import QgsApplication, QgsMessageLog, QgsSettings
 from qgis.PyQt.QtCore import Qt
 from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtWidgets import QAction, QDialog, QTableWidgetItem
@@ -35,10 +36,12 @@ class Plugin:
             QgsMessageLog.logMessage(
                 f"Adding {self.site_packages_path} to PYTHONPATH", "Plugins"
             )
-            sys.path.append(self.site_packages_path)
+            sys.path.insert(0, self.site_packages_path)
         if self.bin_path not in os.environ["PATH"]:
             QgsMessageLog.logMessage(f"Adding {self.bin_path} to PATH", "Plugins")
             os.environ["PATH"] = self.bin_path + ";" + os.environ["PATH"]
+
+        sys.path_importer_cache.clear()
 
         # Monkey patch qgis.utils
         QgsMessageLog.logMessage("Applying monkey patch to qgis.utils", "Plugins")
@@ -48,17 +51,11 @@ class Plugin:
         self.iface.initializationCompleted.connect(self.initComplete)
 
     def initGui(self):
-        """Create the menu entries and toolbar icons inside the QGIS GUI."""
-        # Add toolbar
-        self.toolbar = self.iface.addToolBar("Plugins")
-
-        self.main_action = QAction(
-            QIcon(os.path.join(self.plugin_dir, "icon.svg")),
-            "Run qpip",
-            self.toolbar,
+        self.show_action = QAction(
+            QIcon(os.path.join(self.plugin_dir, "icon.svg")), "Show installed"
         )
-        # self.main_action.triggered.connect(self.do_stuff)
-        self.toolbar.addAction(self.main_action)
+        self.show_action.triggered.connect(self.show)
+        self.iface.addPluginToMenu("Python dependencies (QPIP)", self.show_action)
 
     def initComplete(self):
         QgsMessageLog.logMessage(
@@ -66,11 +63,11 @@ class Plugin:
         )
         self._init_complete = True
         for defered_package in self._defered_packages:
-            self.patched_load_plugin(defered_package)
+            self.patched_load_plugin(defered_package, also_start=True)
         self._defered_packages = []
 
     def unload(self):
-        self.iface.mainWindow().removeToolBar(self.toolbar)
+        self.iface.removePluginMenu("Python dependencies (QPIP)", self.show_action)
 
         # Remove monkey patch
         QgsMessageLog.logMessage("Unapplying monkey patch to qgis.utils", "Plugins")
@@ -80,21 +77,27 @@ class Plugin:
         if self.site_packages_path in sys.path:
             sys.path.remove(self.site_packages_path)
 
-    def patched_load_plugin(self, packageName):
+    def patched_load_plugin(self, packageName, also_start=False):
         """
         This replaces qgis.utils.loadPlugin to check if dependencies are met. If so, it just calls the
-        original qgis.utils.loadPlugin. Otherwise, it will defer loading to self.deferred_loadPlugin.
+        original qgis.utils.loadPlugin. Otherwise, it will defer loading to self.deferred_loadPlugin
+        and return False.
+
+        When called subsequently (not by QgsPluginRegistry::loadPythonPlugin), set also_start to True,
+        so that this also starts the plugin (by matching implementation of QgsPluginRegistry::loadPythonPlugin,
+        not exposed to python).
         """
 
+        missing_deps = {}
+
+        # If requirements.txt is present, we see if we can load it
         requirements_path = os.path.join(
             self.plugins_path, packageName, "requirements.txt"
         )
-
-        # If requirements.txt is present, we see if we can load it
         if os.path.isfile(requirements_path):
-            QgsMessageLog.logMessage(f"{packageName} has a requirements.txt", "Plugins")
-
-            missing_deps = {}
+            QgsMessageLog.logMessage(
+                f"Loading requirements for {packageName}", "Plugins"
+            )
 
             with open(requirements_path, "r") as f:
                 requirements = pkg_resources.parse_requirements(f)
@@ -106,51 +109,93 @@ class Plugin:
                     except pkg_resources.VersionConflict as e:
                         missing_deps[str(requirement)] = f"conflict ({e.dist})"
 
-            if missing_deps:
-                if not self._init_complete:
-                    QgsMessageLog.logMessage(
-                        f"{packageName} has missing requirements. We defer loading to after initialization",
-                        "Plugins",
-                    )
-                    self._defered_packages.append(packageName)
-                    return False
+        deps_to_install = []
+        if missing_deps:
+            QgsMessageLog.logMessage(
+                f"{packageName} has missing dependencies.", "Plugins"
+            )
+            if not self._init_complete:
+                QgsMessageLog.logMessage(
+                    f"Deferring loading of {packageName} to after initialization",
+                    "Plugins",
+                )
+                self._defered_packages.append(packageName)
+                return False
 
-                dialog = QDialog()
-                uic.loadUi(os.path.join(os.path.dirname(__file__), "dialog.ui"), dialog)
+            dialog = InstallMissingDialog(packageName, missing_deps)
+            if dialog.exec_():
+                deps_to_install = dialog.deps_to_install()
 
-                checkboxes = {}
-                dialog.tableWidget.setRowCount(len(missing_deps))
-                for i, (req, state) in enumerate(missing_deps.items()):
-                    checkboxes[req] = QTableWidgetItem()
-                    checkboxes[req].setCheckState(Qt.Checked)
-                    dialog.tableWidget.setItem(i, 0, QTableWidgetItem(packageName))
-                    dialog.tableWidget.setItem(i, 1, QTableWidgetItem(req))
-                    dialog.tableWidget.setItem(i, 2, QTableWidgetItem(state))
-                    dialog.tableWidget.setItem(i, 3, checkboxes[req])
+        if deps_to_install:
+            QgsMessageLog.logMessage(
+                f"Will install selected dependencies : {deps_to_install}", "Plugins"
+            )
+            os.makedirs(self.prefix_path, exist_ok=True)
+            pip_args = [
+                "python",
+                "-m",
+                "pip",
+                "install",
+                *deps_to_install,
+                "--prefix",
+                self.prefix_path,
+            ]
+            subprocess.check_call(pip_args, shell=True)
+            sys.path_importer_cache.clear()
 
-                dialog.exec_()
+        QgsMessageLog.logMessage(f"Proceeding to load {packageName}", "Plugins")
+        could_load = self._initial_loadPlugin(packageName)
 
-                deps_to_install = [
-                    req
-                    for req, checkbox in checkboxes.items()
-                    if checkbox.checkState() == Qt.Checked
-                ]
+        if could_load and also_start:
+            # When called deferred, we also need to start the plugin. This matches implementation
+            # of QgsPluginRegistry::loadPythonPlugin
+            if utils.startPlugin(packageName):
+                utils.pluginMetadata(packageName, "name")
+                QgsSettings().setValue("/PythonPlugins/" + packageName, True)
+                QgsSettings().remove("/PythonPlugins/watchDog/" + packageName)
 
-                if deps_to_install:
-                    os.makedirs(self.prefix_path, exist_ok=True)
-                    pip_args = [
-                        "python",
-                        "-m",
-                        "pip",
-                        "install",
-                        *deps_to_install,
-                        "--prefix",
-                        self.prefix_path,
-                    ]
-                    QgsMessageLog.logMessage(
-                        f"Running command : {pip_args=}", "Plugins"
-                    )
-                    subprocess.check_call(pip_args, shell=True)
+        return could_load
 
-        QgsMessageLog.logMessage(f"Loading {packageName}", "Plugins")
-        return self._initial_loadPlugin(packageName)
+    def show(self):
+        dialog = ShowDialog()
+        dialog.exec_()
+
+
+class InstallMissingDialog(QDialog):
+    def __init__(self, package_name, missing_deps):
+        super().__init__()
+        uic.loadUi(os.path.join(os.path.dirname(__file__), "ui_install.ui"), self)
+
+        self.checkboxes = {}
+        self.tableWidget.setRowCount(len(missing_deps))
+        for i, (req, state) in enumerate(missing_deps.items()):
+            self.checkboxes[req] = QTableWidgetItem()
+            self.checkboxes[req].setCheckState(Qt.Checked)
+            self.tableWidget.setItem(i, 0, QTableWidgetItem(package_name))
+            self.tableWidget.setItem(i, 1, QTableWidgetItem(req))
+            self.tableWidget.setItem(i, 2, QTableWidgetItem(state))
+            self.tableWidget.setItem(i, 3, self.checkboxes[req])
+
+    def deps_to_install(self):
+        deps = []
+        for req, checkbox in self.checkboxes.items():
+            if checkbox.checkState() == Qt.Checked:
+                deps.append(req)
+        return deps
+
+
+class ShowDialog(QDialog):
+    def __init__(self):
+        super().__init__()
+        uic.loadUi(os.path.join(os.path.dirname(__file__), "ui_show.ui"), self)
+
+        distributions = list(metadata.distributions())
+
+        self.checkboxes = {}
+        self.tableWidget.setRowCount(len(distributions))
+        for i, dist in enumerate(distributions):
+            self.tableWidget.setItem(i, 0, QTableWidgetItem(dist.metadata["Name"]))
+            self.tableWidget.setItem(i, 1, QTableWidgetItem(dist.metadata["Version"]))
+            self.tableWidget.setItem(
+                i, 2, QTableWidgetItem(os.path.dirname(dist._path))
+            )
