@@ -178,6 +178,9 @@ class InstallMissingDialog(QDialog):
             self.tableWidget.setItem(i, 2, QTableWidgetItem(state))
             self.tableWidget.setItem(i, 3, self.checkboxes[req])
 
+        if QgsApplication.primaryScreen().logicalDotsPerInch() > 110:
+            self.setMinimumSize(self.minimumWidth() * 2, self.minimumHeight() * 2)
+
     def deps_to_install(self):
         deps = []
         for req, checkbox in self.checkboxes.items():
@@ -201,3 +204,6 @@ class ShowDialog(QDialog):
             self.tableWidget.setItem(
                 i, 2, QTableWidgetItem(os.path.dirname(dist._path))
             )
+
+        if QgsApplication.primaryScreen().logicalDotsPerInch() > 110:
+            self.setMinimumSize(self.minimumWidth() * 2, self.minimumHeight() * 2)

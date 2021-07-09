@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>436</width>
+    <width>400</width>
     <height>300</height>
    </rect>
   </property>
@@ -23,7 +23,7 @@
    <item>
     <widget class="QLabel" name="label">
      <property name="text">
-      <string>Currently installed python dependencies are listed here</string>
+      <string>Currently installed python dependencies.</string>
      </property>
      <property name="wordWrap">
       <bool>true</bool>

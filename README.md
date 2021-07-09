@@ -26,3 +26,14 @@ QPIP handles each plugin independently. If two plugins have incomptabile require
   - a dialog is shown offering to install/upgrade the missing requirements
   - selected requirements are installed with `--prefix USERPROFILE/python/dependencies`
   - the plugin is loaded (even if requirements were not selected, in which case user would likely get an import error)
+
+
+## Contribute
+
+Style is manage by pre-commit :
+```
+pip install pre-commit
+pre-commit install
+```
+
+Deployements to QGIS plugin repository are made automatically with tags `v*`.
