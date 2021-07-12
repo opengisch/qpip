@@ -23,6 +23,14 @@ from qgis.PyQt.QtWidgets import (
 MissingDep = namedtuple("MissingDep", ["package", "requirement", "state"])
 
 
+def log(message):
+    QgsMessageLog.logMessage(message, "QPIP", level=Qgis.MessageLevel.Info)
+
+
+def warn(message):
+    QgsMessageLog.logMessage(message, "QPIP", level=Qgis.MessageLevel.Warning)
+
+
 class Plugin:
     """QGIS Plugin Implementation."""
 
@@ -46,22 +54,20 @@ class Plugin:
         self.bin_path = os.path.join(self.prefix_path, "Scripts")
 
         if self.site_packages_path not in sys.path:
-            QgsMessageLog.logMessage(
-                f"Adding {self.site_packages_path} to PYTHONPATH", "Plugins"
-            )
+            log(f"Adding {self.site_packages_path} to PYTHONPATH")
             sys.path.insert(0, self.site_packages_path)
             os.environ["PYTHONPATH"] = (
                 self.site_packages_path + ";" + os.environ.get("PYTHONPATH", "")
             )
 
         if self.bin_path not in os.environ["PATH"]:
-            QgsMessageLog.logMessage(f"Adding {self.bin_path} to PATH", "Plugins")
+            log(f"Adding {self.bin_path} to PATH")
             os.environ["PATH"] = self.bin_path + ";" + os.environ["PATH"]
 
         sys.path_importer_cache.clear()
 
         # Monkey patch qgis.utils
-        QgsMessageLog.logMessage("Applying monkey patch to qgis.utils", "Plugins")
+        log("Applying monkey patch to qgis.utils")
         self._original_loadPlugin = utils.loadPlugin
         utils.loadPlugin = self.patched_load_plugin
 
@@ -83,9 +89,7 @@ class Plugin:
     def initComplete(self):
         self._init_complete = True
         if self._defered_packages:
-            QgsMessageLog.logMessage(
-                f"Initialization complete. Loading deferred packages", "Plugins"
-            )
+            log(f"Initialization complete. Loading deferred packages")
             self.install_deps_and_start(self._defered_packages)
         self._defered_packages = []
 
@@ -93,7 +97,7 @@ class Plugin:
         self.iface.removePluginMenu("Python dependencies (QPIP)", self.show_action)
 
         # Remove monkey patch
-        QgsMessageLog.logMessage("Unapplying monkey patch to qgis.utils", "Plugins")
+        log("Unapplying monkey patch to qgis.utils")
         utils.loadPlugin = self._original_loadPlugin
 
         # Remove path alterations
@@ -114,15 +118,10 @@ class Plugin:
             return self._original_loadPlugin(packageName)
         else:
             # We miss some dependencies
-            QgsMessageLog.logMessage(
-                f"{packageName} has missing dependencies.", "Plugins"
-            )
+            log(f"{packageName} has missing dependencies.")
             if not self._init_complete:
                 # If gui not initialized yet, we defer loading
-                QgsMessageLog.logMessage(
-                    f"Initialisation not ready. Deferring loading of {packageName}.",
-                    "Plugins",
-                )
+                log(f"Initialisation not ready. Deferring loading of {packageName}.")
                 self._defered_packages.append(packageName)
                 return False
             else:
@@ -139,9 +138,7 @@ class Plugin:
 
         assert self._init_complete
 
-        QgsMessageLog.logMessage(
-            f"Installing deps for {packageNames} before starting them.", "Plugins"
-        )
+        log(f"Installing deps for {packageNames} before starting them.")
 
         missing_deps = []
         for packageName in packageNames:
@@ -149,9 +146,7 @@ class Plugin:
 
         deps_to_install = []
         if len(missing_deps):
-            QgsMessageLog.logMessage(
-                f"{len(missing_deps)} missing dependencies.", "Plugins"
-            )
+            log(f"{len(missing_deps)} missing dependencies.")
 
             dialog = InstallMissingDialog(missing_deps)
             if dialog.exec_():
@@ -164,15 +159,13 @@ class Plugin:
                     )
 
         if deps_to_install:
-            QgsMessageLog.logMessage(
-                f"Will install selected dependencies : {deps_to_install}", "Plugins"
-            )
+            log(f"Will install selected dependencies : {deps_to_install}")
             self.install_deps(deps_to_install)
 
             sys.path_importer_cache.clear()
 
         for packageName in packageNames:
-            QgsMessageLog.logMessage(f"Proceeding to load {packageName}", "Plugins")
+            log(f"Proceeding to load {packageName}")
             could_load = self._original_loadPlugin(packageName)
 
             if could_load:
@@ -190,9 +183,7 @@ class Plugin:
             self.plugins_path, packageName, "requirements.txt"
         )
         if os.path.isfile(requirements_path):
-            QgsMessageLog.logMessage(
-                f"Loading requirements for {packageName}", "Plugins"
-            )
+            log(f"Loading requirements for {packageName}")
 
             with open(requirements_path, "r") as f:
                 requirements = pkg_resources.parse_requirements(f)
@@ -200,9 +191,7 @@ class Plugin:
                 for requirement in requirements:
                     req = str(requirement)
                     if self.settings.value(f"skips/{packageName}/{req}", False):
-                        QgsMessageLog.logMessage(
-                            f"Skipping {req} required by {packageName}.", "Plugins"
-                        )
+                        log(f"Skipping {req} required by {packageName}.")
                         continue
 
                     try:
@@ -218,7 +207,7 @@ class Plugin:
     def install_deps(self, deps_to_install, extra_args=[]):
         os.makedirs(self.prefix_path, exist_ok=True)
         reqs = [dep.requirement for dep in deps_to_install]
-        QgsMessageLog.logMessage(f"Will install {reqs}", "Plugin")
+        log(f"Will pip install {reqs}")
         pip_args = [
             "python",
             "-um",
@@ -248,7 +237,7 @@ class Plugin:
                 full_output += output
                 if output:
                     progress_dlg.setLabelText(output)
-                    QgsMessageLog.logMessage(output, "Plugins")
+                    log(output)
             except subprocess.TimeoutExpired:
                 pass
 
@@ -260,7 +249,7 @@ class Plugin:
         progress_dlg.close()
 
         if process.returncode != 0:
-            QgsMessageLog.logMessage(f"Installation failed.", "Plugins")
+            warn(f"Installation failed.")
             message = QMessageBox(
                 QMessageBox.Warning,
                 "Installation failed",
@@ -283,10 +272,6 @@ class Plugin:
     def skip(self):
         dialog = SkipDialog()
         dialog.exec_()
-
-    def log(self, msg):
-
-        QgsMessageLog.logMessage(msg, "Plugins")
 
 
 class InstallMissingDialog(QDialog):
