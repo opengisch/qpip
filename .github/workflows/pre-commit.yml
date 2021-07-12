@@ -1,0 +1,19 @@
+
+name: Enforce style
+
+on:
+  pull_request:
+
+  push:
+    branches:
+    - master
+
+jobs:
+  pre-commit:
+    name: Deploy to QGIS plugin repository
+    runs-on: ubuntu-20.04
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - uses: pre-commit/action@v2.0.3
