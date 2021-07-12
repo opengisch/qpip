@@ -1,0 +1,10 @@
+[general]
+name=test_plugin_a
+qgisMinimumVersion=3.18
+description=test_plugin_a
+version=dev
+author=Opengis
+email=olivier@opengis.ch
+about=test_plugin_a
+tracker=
+repository=
