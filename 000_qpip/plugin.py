@@ -1,10 +1,12 @@
 import os
 import subprocess
 import sys
+from collections import namedtuple
 from importlib import metadata
 from subprocess import PIPE, STDOUT, Popen
 
 import pkg_resources
+from pkg_resources import DistributionNotFound, VersionConflict
 from PyQt5 import uic
 from qgis import utils
 from qgis.core import Qgis, QgsApplication, QgsMessageLog, QgsSettings
@@ -17,6 +19,8 @@ from qgis.PyQt.QtWidgets import (
     QProgressDialog,
     QTableWidgetItem,
 )
+
+MissingDep = namedtuple("MissingDep", ["package", "requirement", "state"])
 
 
 class Plugin:
@@ -54,7 +58,7 @@ class Plugin:
 
         # Monkey patch qgis.utils
         QgsMessageLog.logMessage("Applying monkey patch to qgis.utils", "Plugins")
-        self._initial_loadPlugin = utils.loadPlugin
+        self._original_loadPlugin = utils.loadPlugin
         utils.loadPlugin = self.patched_load_plugin
 
         self.iface.initializationCompleted.connect(self.initComplete)
@@ -78,8 +82,7 @@ class Plugin:
             QgsMessageLog.logMessage(
                 f"Initialization complete. Loading deferred packages", "Plugins"
             )
-            for defered_package in self._defered_packages:
-                self.patched_load_plugin(defered_package, also_start=True)
+            self.install_deps_and_start(self._defered_packages)
         self._defered_packages = []
 
     def unload(self):
@@ -87,25 +90,93 @@ class Plugin:
 
         # Remove monkey patch
         QgsMessageLog.logMessage("Unapplying monkey patch to qgis.utils", "Plugins")
-        utils.loadPlugin = self._initial_loadPlugin
+        utils.loadPlugin = self._original_loadPlugin
 
         # Remove path alterations
         if self.site_packages_path in sys.path:
             sys.path.remove(self.site_packages_path)
 
-    def patched_load_plugin(self, packageName, also_start=False):
+    def patched_load_plugin(self, packageName):
         """
-        This replaces qgis.utils.loadPlugin to check if dependencies are met. If so, it just calls the
-        original qgis.utils.loadPlugin. Otherwise, it will defer loading to self.deferred_loadPlugin
-        and return False.
+        This replaces qgis.utils.loadPlugin
+        """
+        missing_deps = self.list_missing_deps(packageName)
+        if not missing_deps:
+            # We simply load the plugin right away
+            return self._original_loadPlugin(packageName)
+        else:
+            # We miss some dependencies
+            QgsMessageLog.logMessage(
+                f"{packageName} has missing dependencies.", "Plugins"
+            )
+            if not self._init_complete:
+                # If gui not initialized yet, we defer loading
+                QgsMessageLog.logMessage(
+                    f"Initialisation not ready. Deferring loading of {packageName}.",
+                    "Plugins",
+                )
+                self._defered_packages.append(packageName)
+                return False
+            else:
+                # Otherwise (probably a plugin that was just installed), we install deps and load right away
+                self.install_deps_and_start([packageName])
+                return True
 
-        When called subsequently (not by QgsPluginRegistry::loadPythonPlugin), set also_start to True,
-        so that this also starts the plugin (by matching implementation of QgsPluginRegistry::loadPythonPlugin,
-        not exposed to python).
+    def install_deps_and_start(self, packageNames):
+        """
+        This collects all missing deps for given packages, then shows a GUI to install them,
+        and the loads and starts all packages. It tries to match implementation of
+        QgsPluginRegistry::loadPythonPlugin (including watchdog).
         """
 
-        missing_deps = {}
+        assert self._init_complete
 
+        QgsMessageLog.logMessage(
+            f"Installing deps for {packageNames} before starting them.", "Plugins"
+        )
+
+        missing_deps = []
+        for packageName in packageNames:
+            missing_deps.extend(self.list_missing_deps(packageName))
+
+        deps_to_install = []
+        if len(missing_deps):
+            QgsMessageLog.logMessage(
+                f"{len(missing_deps)} missing dependencies.", "Plugins"
+            )
+
+            dialog = InstallMissingDialog(missing_deps)
+            if dialog.exec_():
+                deps_to_install = dialog.deps_to_install()
+                deps_to_dontask = dialog.deps_to_dontask()
+
+                for dep in deps_to_dontask:
+                    self.settings.setValue(
+                        f"skips/{dep.package}/{dep.requirement}", True
+                    )
+
+        if deps_to_install:
+            QgsMessageLog.logMessage(
+                f"Will install selected dependencies : {deps_to_install}", "Plugins"
+            )
+            self.install_deps(deps_to_install)
+
+            sys.path_importer_cache.clear()
+
+        for packageName in packageNames:
+            QgsMessageLog.logMessage(f"Proceeding to load {packageName}", "Plugins")
+            could_load = self._original_loadPlugin(packageName)
+
+            if could_load:
+                # When called deferred, we also need to start the plugin. This matches implementation
+                # of QgsPluginRegistry::loadPythonPlugin
+                could_start = utils.startPlugin(packageName)
+                if could_start:
+                    QgsSettings().setValue("/PythonPlugins/" + packageName, True)
+                    QgsSettings().remove("/PythonPlugins/watchDog/" + packageName)
+
+    def list_missing_deps(self, packageName):
+        missing_deps = []
         # If requirements.txt is present, we see if we can load it
         requirements_path = os.path.join(
             self.plugins_path, packageName, "requirements.txt"
@@ -125,66 +196,27 @@ class Plugin:
                             f"Skipping {req} required by {packageName}.", "Plugins"
                         )
                         continue
+
                     try:
                         working_set.require(req)
-                    except pkg_resources.DistributionNotFound as e:
-                        missing_deps[req] = "missing"
-                    except pkg_resources.VersionConflict as e:
-                        missing_deps[req] = f"conflict ({e.dist})"
-
-        deps_to_install = []
-        if missing_deps:
-            QgsMessageLog.logMessage(
-                f"{packageName} has missing dependencies.", "Plugins"
-            )
-            if not self._init_complete:
-                QgsMessageLog.logMessage(
-                    f"Deferring loading of {packageName} to after initialization",
-                    "Plugins",
-                )
-                self._defered_packages.append(packageName)
-                return False
-
-            dialog = InstallMissingDialog(packageName, missing_deps)
-            if dialog.exec_():
-                deps_to_install = dialog.deps_to_install()
-                deps_to_dontask = dialog.deps_to_dontask()
-
-                for dep in deps_to_dontask:
-                    self.settings.setValue(f"skips/{packageName}/{dep}", True)
-
-        if deps_to_install:
-            QgsMessageLog.logMessage(
-                f"Will install selected dependencies : {deps_to_install}", "Plugins"
-            )
-            self.install_deps(deps_to_install)
-            self.iface.messageBar().pushMessage(
-                "Success", "Installed " + " ".join(deps_to_install), level=Qgis.Success
-            )
-
-            sys.path_importer_cache.clear()
-
-        QgsMessageLog.logMessage(f"Proceeding to load {packageName}", "Plugins")
-        could_load = self._initial_loadPlugin(packageName)
-
-        if could_load and also_start:
-            # When called deferred, we also need to start the plugin. This matches implementation
-            # of QgsPluginRegistry::loadPythonPlugin
-            if utils.startPlugin(packageName):
-                utils.pluginMetadata(packageName, "name")
-                QgsSettings().setValue("/PythonPlugins/" + packageName, True)
-                QgsSettings().remove("/PythonPlugins/watchDog/" + packageName)
-
-        return could_load
+                    except (DistributionNotFound, VersionConflict) as e:
+                        if isinstance(e, DistributionNotFound):
+                            error = "missing"
+                        else:  # if isinstance(e, VersionConflict):
+                            error = f"conflict ({e.dist})"
+                        missing_deps.append(MissingDep(packageName, req, error))
+        return missing_deps
 
     def install_deps(self, deps_to_install, extra_args=[]):
         os.makedirs(self.prefix_path, exist_ok=True)
+        reqs = [dep.requirement for dep in deps_to_install]
+        QgsMessageLog.logMessage(f"Will install {reqs}", "Plugin")
         pip_args = [
             "python",
             "-um",
             "pip",
             "install",
-            *deps_to_install,
+            *reqs,
             "--prefix",
             self.prefix_path,
             *extra_args,
@@ -229,6 +261,12 @@ class Plugin:
             )
             message.setDetailedText(full_output)
             message.exec_()
+        else:
+            self.iface.messageBar().pushMessage(
+                "Success",
+                f"Installed {len(deps_to_install)} requirements",
+                level=Qgis.Success,
+            )
 
     def show(self):
         dialog = ShowDialog()
@@ -244,36 +282,36 @@ class Plugin:
 
 
 class InstallMissingDialog(QDialog):
-    def __init__(self, package_name, missing_deps):
+    def __init__(self, missing_deps):
         super().__init__()
         uic.loadUi(os.path.join(os.path.dirname(__file__), "ui_install.ui"), self)
 
         self.checkboxes = {}
         self.tableWidget.setRowCount(len(missing_deps))
-        for i, (req, state) in enumerate(missing_deps.items()):
-            self.checkboxes[req] = QTableWidgetItem()
-            self.checkboxes[req].setCheckState(Qt.Checked)
-            self.tableWidget.setItem(i, 0, QTableWidgetItem(package_name))
-            self.tableWidget.setItem(i, 1, QTableWidgetItem(req))
-            self.tableWidget.setItem(i, 2, QTableWidgetItem(state))
-            self.tableWidget.setItem(i, 3, self.checkboxes[req])
+        for i, dep in enumerate(missing_deps):
+            self.checkboxes[dep] = QTableWidgetItem()
+            self.checkboxes[dep].setCheckState(Qt.Checked)
+            self.tableWidget.setItem(i, 0, QTableWidgetItem(dep.package))
+            self.tableWidget.setItem(i, 1, QTableWidgetItem(dep.requirement))
+            self.tableWidget.setItem(i, 2, QTableWidgetItem(dep.state))
+            self.tableWidget.setItem(i, 3, self.checkboxes[dep])
 
         if QgsApplication.primaryScreen().logicalDotsPerInch() > 110:
             self.setMinimumSize(self.minimumWidth() * 2, self.minimumHeight() * 2)
 
     def deps_to_install(self):
         deps = []
-        for req, checkbox in self.checkboxes.items():
+        for dep, checkbox in self.checkboxes.items():
             if checkbox.checkState() == Qt.Checked:
-                deps.append(req)
+                deps.append(dep)
         return deps
 
     def deps_to_dontask(self):
         deps = []
         if self.dontAskAgainCheckbox.isChecked():
-            for req, checkbox in self.checkboxes.items():
+            for dep, checkbox in self.checkboxes.items():
                 if checkbox.checkState() == Qt.Unchecked:
-                    deps.append(req)
+                    deps.append(dep)
         return deps
 
 
