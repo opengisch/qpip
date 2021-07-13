@@ -50,6 +50,10 @@ class Plugin:
                 f"Adding {self.site_packages_path} to PYTHONPATH", "Plugins"
             )
             sys.path.insert(0, self.site_packages_path)
+            os.environ["PYTHONPATH"] = (
+                self.site_packages_path + ";" + os.environ.get("PYTHONPATH", "")
+            )
+
         if self.bin_path not in os.environ["PATH"]:
             QgsMessageLog.logMessage(f"Adding {self.bin_path} to PATH", "Plugins")
             os.environ["PATH"] = self.bin_path + ";" + os.environ["PATH"]
@@ -95,6 +99,10 @@ class Plugin:
         # Remove path alterations
         if self.site_packages_path in sys.path:
             sys.path.remove(self.site_packages_path)
+            os.environ["PYTHONPATH"] = os.environ["PYTHONPATH"].replace(
+                self.bin_path + ";", ""
+            )
+            os.environ["PATH"] = os.environ["PATH"].replace(self.bin_path + ";", "")
 
     def patched_load_plugin(self, packageName):
         """
