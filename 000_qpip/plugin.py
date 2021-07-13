@@ -3,7 +3,15 @@ import subprocess
 import sys
 from collections import namedtuple
 from importlib import metadata
-from subprocess import PIPE, STDOUT, Popen
+from subprocess import (
+    PIPE,
+    STARTF_USESHOWWINDOW,
+    STARTF_USESTDHANDLES,
+    STARTUPINFO,
+    STDOUT,
+    SW_HIDE,
+    Popen,
+)
 
 import pkg_resources
 from pkg_resources import DistributionNotFound, VersionConflict
@@ -225,7 +233,13 @@ class Plugin:
         progress_dlg.setWindowModality(Qt.WindowModal)
         progress_dlg.show()
 
-        process = Popen(pip_args, shell=True, stdout=PIPE, stderr=STDOUT)
+        startupinfo = None
+        if os.name == "nt":
+            startupinfo = STARTUPINFO()
+            startupinfo.dwFlags |= STARTF_USESTDHANDLES | STARTF_USESHOWWINDOW
+            startupinfo.wShowWindow = SW_HIDE
+
+        process = Popen(pip_args, stdout=PIPE, stderr=STDOUT, startupinfo=startupinfo)
 
         full_output = ""
         while True:
@@ -259,6 +273,7 @@ class Plugin:
             message.setDetailedText(full_output)
             message.exec_()
         else:
+            log("Installation succeeded.")
             self.iface.messageBar().pushMessage(
                 "Success",
                 f"Installed {len(deps_to_install)} requirements",
