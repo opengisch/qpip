@@ -8,8 +8,17 @@ When loading other plugins, it will check if a `requirements.txt` file exists in
 
 All requirements are installed in the user's profile (under `python/dependencies`), so that each user profile can have a different set of dependencies.
 
+## Usage (end user)
 
-## Using QPIP in your plugin
+Install `QPIP` through the QGIS plugin manager. Once installed, by default, dependencies will be checked on each startup and plugin activation, and a dialog will offer to install missing dependencies.
+
+A `QPIP` entry will appear  in the plugin menu :
+- **Check dependencies now** : Checks requirements for all enabled plugins, and offers to install/upgrade missing requirements
+- **Check dependencies on startup** : Toggles whether plugins are checked on QGIS startup. If you notice slowdown on plugin loading, disable this, and manually check dependencies. Note that dependencies will still be checked for new plugin installations.
+- **Show installed** : Shows all installed PIP dependencies (both system wide, and in your user profile using QPIP)
+- **Show skips** : Shows all skipped dependencies (dependencies for which the install dialog is skipped)
+
+## Usage (how to integrate in your own QGIS plugin)
 
 Add `plugin_dependencies=qpip` to your plugin's `metadata.txt` to ensure your user will have QPIP installed upon installation of your plugin.
 
