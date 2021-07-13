@@ -7,7 +7,7 @@ from subprocess import PIPE, STDOUT, Popen
 import pkg_resources
 from PyQt5 import uic
 from qgis import utils
-from qgis.core import QgsApplication, QgsMessageLog, QgsSettings
+from qgis.core import Qgis, QgsApplication, QgsMessageLog, QgsSettings
 from qgis.PyQt.QtCore import Qt
 from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtWidgets import (
@@ -27,6 +27,8 @@ class Plugin:
         self.plugin_dir = os.path.dirname(__file__)
         self._defered_packages = []
         self._init_complete = False
+        self.settings = QgsSettings()
+        self.settings.beginGroup("QPIP")
 
         self.plugins_path = os.path.join(
             QgsApplication.qgisSettingsDirPath(), "python", "plugins"
@@ -63,6 +65,12 @@ class Plugin:
         )
         self.show_action.triggered.connect(self.show)
         self.iface.addPluginToMenu("Python dependencies (QPIP)", self.show_action)
+
+        self.skip_action = QAction(
+            QIcon(os.path.join(self.plugin_dir, "icon.svg")), "Show skips"
+        )
+        self.skip_action.triggered.connect(self.skip)
+        self.iface.addPluginToMenu("Python dependencies (QPIP)", self.skip_action)
 
     def initComplete(self):
         self._init_complete = True
@@ -111,12 +119,18 @@ class Plugin:
                 requirements = pkg_resources.parse_requirements(f)
                 working_set = pkg_resources.WorkingSet()
                 for requirement in requirements:
+                    req = str(requirement)
+                    if self.settings.value(f"skips/{packageName}/{req}", False):
+                        QgsMessageLog.logMessage(
+                            f"Skipping {req} required by {packageName}.", "Plugins"
+                        )
+                        continue
                     try:
-                        working_set.require(str(requirement))
+                        working_set.require(req)
                     except pkg_resources.DistributionNotFound as e:
-                        missing_deps[str(requirement)] = "missing"
+                        missing_deps[req] = "missing"
                     except pkg_resources.VersionConflict as e:
-                        missing_deps[str(requirement)] = f"conflict ({e.dist})"
+                        missing_deps[req] = f"conflict ({e.dist})"
 
         deps_to_install = []
         if missing_deps:
@@ -134,12 +148,19 @@ class Plugin:
             dialog = InstallMissingDialog(packageName, missing_deps)
             if dialog.exec_():
                 deps_to_install = dialog.deps_to_install()
+                deps_to_dontask = dialog.deps_to_dontask()
+
+                for dep in deps_to_dontask:
+                    self.settings.setValue(f"skips/{packageName}/{dep}", True)
 
         if deps_to_install:
             QgsMessageLog.logMessage(
                 f"Will install selected dependencies : {deps_to_install}", "Plugins"
             )
             self.install_deps(deps_to_install)
+            self.iface.messageBar().pushMessage(
+                "Success", "Installed " + " ".join(deps_to_install), level=Qgis.Success
+            )
 
             sys.path_importer_cache.clear()
 
@@ -213,6 +234,14 @@ class Plugin:
         dialog = ShowDialog()
         dialog.exec_()
 
+    def skip(self):
+        dialog = SkipDialog()
+        dialog.exec_()
+
+    def log(self, msg):
+
+        QgsMessageLog.logMessage(msg, "Plugins")
+
 
 class InstallMissingDialog(QDialog):
     def __init__(self, package_name, missing_deps):
@@ -239,6 +268,14 @@ class InstallMissingDialog(QDialog):
                 deps.append(req)
         return deps
 
+    def deps_to_dontask(self):
+        deps = []
+        if self.dontAskAgainCheckbox.isChecked():
+            for req, checkbox in self.checkboxes.items():
+                if checkbox.checkState() == Qt.Unchecked:
+                    deps.append(req)
+        return deps
+
 
 class ShowDialog(QDialog):
     def __init__(self):
@@ -258,3 +295,33 @@ class ShowDialog(QDialog):
 
         if QgsApplication.primaryScreen().logicalDotsPerInch() > 110:
             self.setMinimumSize(self.minimumWidth() * 2, self.minimumHeight() * 2)
+
+
+class SkipDialog(QDialog):
+    def __init__(self):
+        super().__init__()
+        uic.loadUi(os.path.join(os.path.dirname(__file__), "ui_skips.ui"), self)
+
+        self.settings = QgsSettings()
+        self.settings.beginGroup("QPIP")
+
+        self.pushButton.pressed.connect(self.clear_skips)
+
+        self.repopulate()
+
+        if QgsApplication.primaryScreen().logicalDotsPerInch() > 110:
+            self.setMinimumSize(self.minimumWidth() * 2, self.minimumHeight() * 2)
+
+    def repopulate(self):
+
+        keys = self.settings.allKeys()
+
+        self.tableWidget.setRowCount(len(keys))
+        for i, key in enumerate(keys):
+            _, package, req = key.split("/")
+            self.tableWidget.setItem(i, 0, QTableWidgetItem(package))
+            self.tableWidget.setItem(i, 1, QTableWidgetItem(req))
+
+    def clear_skips(self):
+        self.settings.remove("skips")
+        self.repopulate()
