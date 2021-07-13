@@ -82,26 +82,26 @@ class Plugin:
         self.iface.initializationCompleted.connect(self.initComplete)
 
     def initGui(self):
-        icon = QIcon(os.path.join(self.plugin_dir, "icon.svg"))
-        self.show_action = QAction(icon, "Show installed")
-        self.show_action.triggered.connect(self.show)
-        self.iface.addPluginToMenu("Python dependencies (QPIP)", self.show_action)
 
-        self.skip_action = QAction(icon, "Show skips")
-        self.skip_action.triggered.connect(self.skip)
-        self.iface.addPluginToMenu("Python dependencies (QPIP)", self.skip_action)
+        icon = QIcon(os.path.join(self.plugin_dir, "icon.svg"))
 
         self.check_action = QAction(icon, "Check dependencies now")
         self.check_action.triggered.connect(self.check)
-        self.iface.addPluginToMenu("Python dependencies (QPIP)", self.check_action)
+        self.iface.addPluginToMenu("QPIP", self.check_action)
 
-        self.toggle_startup_action = QAction(icon, "Check dependencies on startup")
+        self.toggle_startup_action = QAction("Check dependencies on startup")
         self.toggle_startup_action.setCheckable(True)
         self.toggle_startup_action.setChecked(self._is_check_on_startup_enabled())
         self.toggle_startup_action.toggled.connect(self.toggle_startup)
-        self.iface.addPluginToMenu(
-            "Python dependencies (QPIP)", self.toggle_startup_action
-        )
+        self.iface.addPluginToMenu("QPIP", self.toggle_startup_action)
+
+        self.show_action = QAction("Show installed")
+        self.show_action.triggered.connect(self.show)
+        self.iface.addPluginToMenu("QPIP", self.show_action)
+
+        self.skip_action = QAction("Show skips")
+        self.skip_action.triggered.connect(self.skip)
+        self.iface.addPluginToMenu("QPIP", self.skip_action)
 
     def initComplete(self):
         self._init_complete = True
@@ -112,12 +112,10 @@ class Plugin:
         self._defered_packages = []
 
     def unload(self):
-        self.iface.removePluginMenu("Python dependencies (QPIP)", self.show_action)
-        self.iface.removePluginMenu("Python dependencies (QPIP)", self.skip_action)
-        self.iface.removePluginMenu("Python dependencies (QPIP)", self.check_action)
-        self.iface.removePluginMenu(
-            "Python dependencies (QPIP)", self.toggle_startup_action
-        )
+        self.iface.removePluginMenu("QPIP", self.show_action)
+        self.iface.removePluginMenu("QPIP", self.skip_action)
+        self.iface.removePluginMenu("QPIP", self.check_action)
+        self.iface.removePluginMenu("QPIP", self.toggle_startup_action)
 
         # Remove monkey patch
         log("Unapplying monkey patch to qgis.utils")
