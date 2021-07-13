@@ -2,12 +2,20 @@
 
 **WARNING - THIS IS IN EARLY DEVELOPEMENT, NOT STABLE/USABLE YET**
 
-**QPIP** is a QGIS plugin allowing to install other plugin's python dependencies.
+**QPIP** is a QGIS plugin allowing to install Python dependencies for other plugins.
 
 When loading other plugins, it will check if a `requirements.txt` file exists in its directory. If so, it will verify if the dependencies are met, and display a dialog offering to install missing requirements.
 
 All requirements are installed in the user's profile (under `python/dependencies`), so that each user profile can have a different set of dependencies.
 
+
+## Using QPIP in your plugin
+
+Add `plugin_dependencies=qpip` to your plugin's `metadata.txt` to ensure your user will have QPIP installed upon installation of your plugin.
+
+Add a `requirements.txt` file in your plugin directory (see [an example](https://pip.pypa.io/en/stable/cli/pip_install/#example-requirements-file)).
+
+**Important** : make sure to keep your requirements as loose as possible, as to minimise the risk of requirements conflicts with other plugins. Also, avoid requiring libraries that may conflict with core QGIS dependencies such as GDAL, as it could lead to instabilities.
 
 ## Limitations
 
@@ -30,10 +38,10 @@ QPIP handles each plugin independently. If two plugins have incomptabile require
 
 ## Contribute
 
-Style is manage by pre-commit :
+Style is enforced by pre-commit :
 ```
 pip install pre-commit
 pre-commit install
 ```
 
-Deployements to QGIS plugin repository are made automatically with tags `v*`.
+Deployements to QGIS plugin repository are made automatically by Github workflows when tags matching `v*` are pushed.
