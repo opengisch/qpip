@@ -23,7 +23,7 @@
    <item>
     <widget class="QLabel" name="label">
      <property name="text">
-      <string>Missing python requirements found. Here, you can choose which one you want to install.</string>
+      <string>Missing python requirements found. Installing is optional, however, plugin will likely fail to load or malfunction if you do not install all requirements.</string>
      </property>
      <property name="wordWrap">
       <bool>true</bool>
@@ -63,7 +63,7 @@
       <string notr="true">font-style: italic</string>
      </property>
      <property name="text">
-      <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;There is no guarantee that these requirements are compatible with previously installed plugins. In that case, you could see the same dialog reappear. In that case, contact the plugin authors to see if they can sort the situation. In the mean time, you can use two distinct user profiles.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+      <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;There is no guarantee that these requirements are compatible with previously installed plugins which could lead to this dialog reappearing on each reload. In that case, contact the plugin authors to see if they can sort the situation. In the mean time, you can use two distinct user profiles.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
      </property>
      <property name="wordWrap">
       <bool>true</bool>
