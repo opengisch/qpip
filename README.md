@@ -17,6 +17,7 @@ A `QPIP` entry will appear  in the plugin menu :
 - **Check dependencies on startup** : Toggles whether plugins are checked on QGIS startup. If you notice slowdown on plugin loading, disable this, and manually check dependencies. Note that dependencies will still be checked for new plugin installations.
 - **Show installed** : Shows all installed PIP dependencies (both system wide, and in your user profile using QPIP)
 - **Show skips** : Shows all skipped dependencies (dependencies for which the install dialog is skipped)
+- **Show folder** : Opens the dependencies folder in your profile path. If you run into trouble, you can delete everything contained in that folder to remove everything installed by QPIP.
 
 ## Usage (how to integrate in your own QGIS plugin)
 
