@@ -82,15 +82,12 @@ class Plugin:
         self.iface.initializationCompleted.connect(self.initComplete)
 
     def initGui(self):
-        self.show_action = QAction(
-            QIcon(os.path.join(self.plugin_dir, "icon.svg")), "Show installed"
-        )
+        icon = QIcon(os.path.join(self.plugin_dir, "icon.svg"))
+        self.show_action = QAction(icon, "Show installed")
         self.show_action.triggered.connect(self.show)
         self.iface.addPluginToMenu("Python dependencies (QPIP)", self.show_action)
 
-        self.skip_action = QAction(
-            QIcon(os.path.join(self.plugin_dir, "icon.svg")), "Show skips"
-        )
+        self.skip_action = QAction(icon, "Show skips")
         self.skip_action.triggered.connect(self.skip)
         self.iface.addPluginToMenu("Python dependencies (QPIP)", self.skip_action)
 
@@ -98,7 +95,8 @@ class Plugin:
         self._init_complete = True
         if self._defered_packages:
             log(f"Initialization complete. Loading deferred packages")
-            self.install_deps_and_start(self._defered_packages)
+            self.install_deps_for_packages(self._defered_packages)
+            self.start_packages(self._defered_packages)
         self._defered_packages = []
 
     def unload(self):
@@ -134,14 +132,13 @@ class Plugin:
                 return False
             else:
                 # Otherwise (probably a plugin that was just installed), we install deps and load right away
-                self.install_deps_and_start([packageName])
+                self.pip_install_deps([packageName])
+                self.start_packages([packageName])
                 return True
 
-    def install_deps_and_start(self, packageNames):
+    def install_deps_for_packages(self, packageNames):
         """
-        This collects all missing deps for given packages, then shows a GUI to install them,
-        and the loads and starts all packages. It tries to match implementation of
-        QgsPluginRegistry::loadPythonPlugin (including watchdog).
+        This collects all missing deps for given packages, then shows a GUI to install them.
         """
 
         assert self._init_complete
@@ -168,9 +165,16 @@ class Plugin:
 
         if deps_to_install:
             log(f"Will install selected dependencies : {deps_to_install}")
-            self.install_deps(deps_to_install)
+            self.pip_install_deps(deps_to_install)
 
             sys.path_importer_cache.clear()
+
+    def start_packages(self, packageNames):
+        """
+        This loads and starts all packages.
+
+        It tries to match implementation of QgsPluginRegistry::loadPythonPlugin (including watchdog).
+        """
 
         for packageName in packageNames:
             log(f"Proceeding to load {packageName}")
@@ -212,7 +216,10 @@ class Plugin:
                         missing_deps.append(MissingDep(packageName, req, error))
         return missing_deps
 
-    def install_deps(self, deps_to_install, extra_args=[]):
+    def pip_install_deps(self, deps_to_install, extra_args=[]):
+        """
+        Installs given deps with pip
+        """
         os.makedirs(self.prefix_path, exist_ok=True)
         reqs = [dep.requirement for dep in deps_to_install]
         log(f"Will pip install {reqs}")
