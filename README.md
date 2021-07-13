@@ -34,7 +34,7 @@ QPIP handles each plugin independently. If two plugins have incomptabile require
 
 ## How it works internally
 
-- QPIP is installed under the `000_qpip` directory, so that it (hopefully) loads first
+- QPIP is installed under the `a00_qpip` directory, so that it (hopefully) loads first
 - `USERPROFILE/python/dependencies/Lib/site-packages` is added to sys.path
 - `USERPROFILE/python/dependencies/Scripts` is added to the PATH
 - `qgis.utils.loadPlugin` is monkeypatched, injecting code that checks requirements in `requirements.txt` using `pkg_resources`
