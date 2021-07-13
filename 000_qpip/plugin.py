@@ -2,6 +2,7 @@ import os
 import subprocess
 import sys
 from importlib import metadata
+from subprocess import PIPE, STDOUT, Popen
 
 import pkg_resources
 from PyQt5 import uic
@@ -9,7 +10,13 @@ from qgis import utils
 from qgis.core import QgsApplication, QgsMessageLog, QgsSettings
 from qgis.PyQt.QtCore import Qt
 from qgis.PyQt.QtGui import QIcon
-from qgis.PyQt.QtWidgets import QAction, QDialog, QTableWidgetItem
+from qgis.PyQt.QtWidgets import (
+    QAction,
+    QDialog,
+    QMessageBox,
+    QProgressDialog,
+    QTableWidgetItem,
+)
 
 
 class Plugin:
@@ -132,17 +139,8 @@ class Plugin:
             QgsMessageLog.logMessage(
                 f"Will install selected dependencies : {deps_to_install}", "Plugins"
             )
-            os.makedirs(self.prefix_path, exist_ok=True)
-            pip_args = [
-                "python",
-                "-m",
-                "pip",
-                "install",
-                *deps_to_install,
-                "--prefix",
-                self.prefix_path,
-            ]
-            subprocess.check_call(pip_args, shell=True)
+            self.install_deps(deps_to_install)
+
             sys.path_importer_cache.clear()
 
         QgsMessageLog.logMessage(f"Proceeding to load {packageName}", "Plugins")
@@ -157,6 +155,59 @@ class Plugin:
                 QgsSettings().remove("/PythonPlugins/watchDog/" + packageName)
 
         return could_load
+
+    def install_deps(self, deps_to_install, extra_args=[]):
+        os.makedirs(self.prefix_path, exist_ok=True)
+        pip_args = [
+            "python",
+            "-um",
+            "pip",
+            "install",
+            *deps_to_install,
+            "--prefix",
+            self.prefix_path,
+            *extra_args,
+        ]
+
+        progress_dlg = QProgressDialog(
+            "Installing dependencies", "Abort", 0, 0, parent=self.iface.mainWindow()
+        )
+        progress_dlg.setWindowModality(Qt.WindowModal)
+        progress_dlg.show()
+
+        process = Popen(pip_args, shell=True, stdout=PIPE, stderr=STDOUT)
+
+        full_output = ""
+        while True:
+            QgsApplication.processEvents()
+            try:
+                # FIXME : this doesn't seem to timeout
+                out, _ = process.communicate(timeout=0.1)
+                output = out.decode(errors="replace").strip()
+                full_output += output
+                if output:
+                    progress_dlg.setLabelText(output)
+                    QgsMessageLog.logMessage(output, "Plugins")
+            except subprocess.TimeoutExpired:
+                pass
+
+            if progress_dlg.wasCanceled():
+                process.kill()
+            if process.poll() is not None:
+                break
+
+        progress_dlg.close()
+
+        if process.returncode != 0:
+            QgsMessageLog.logMessage(f"Installation failed.", "Plugins")
+            message = QMessageBox(
+                QMessageBox.Warning,
+                "Installation failed",
+                f"Installation of dependecies failed (code {process.returncode}).\nSee logs for more information.",
+                parent=self.iface.mainWindow(),
+            )
+            message.setDetailedText(full_output)
+            message.exec_()
 
     def show(self):
         dialog = ShowDialog()
