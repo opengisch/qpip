@@ -392,11 +392,13 @@ class SkipDialog(QDialog):
 
     def repopulate(self):
 
+        self.settings.beginGroup("skips")
         keys = self.settings.allKeys()
+        self.settings.endGroup()
 
         self.tableWidget.setRowCount(len(keys))
         for i, key in enumerate(keys):
-            _, package, req = key.split("/")
+            package, req = key.split("/")
             self.tableWidget.setItem(i, 0, QTableWidgetItem(package))
             self.tableWidget.setItem(i, 1, QTableWidgetItem(req))
 
