@@ -91,6 +91,10 @@ class Plugin:
         self.skip_action.triggered.connect(self.skip)
         self.iface.addPluginToMenu("Python dependencies (QPIP)", self.skip_action)
 
+        self.check_action = QAction(icon, "Check dependencies now")
+        self.check_action.triggered.connect(self.check)
+        self.iface.addPluginToMenu("Python dependencies (QPIP)", self.check_action)
+
     def initComplete(self):
         self._init_complete = True
         if self._defered_packages:
@@ -101,6 +105,8 @@ class Plugin:
 
     def unload(self):
         self.iface.removePluginMenu("Python dependencies (QPIP)", self.show_action)
+        self.iface.removePluginMenu("Python dependencies (QPIP)", self.skip_action)
+        self.iface.removePluginMenu("Python dependencies (QPIP)", self.check_action)
 
         # Remove monkey patch
         log("Unapplying monkey patch to qgis.utils")
@@ -294,6 +300,9 @@ class Plugin:
     def skip(self):
         dialog = SkipDialog()
         dialog.exec_()
+
+    def check(self):
+        self.install_deps_for_packages(utils.active_plugins)
 
 
 class InstallMissingDialog(QDialog):
