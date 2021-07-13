@@ -3,7 +3,6 @@ import platform
 import subprocess
 import sys
 from collections import namedtuple
-from importlib import metadata
 from subprocess import (
     PIPE,
     STARTF_USESHOWWINDOW,
@@ -15,29 +14,17 @@ from subprocess import (
 )
 
 import pkg_resources
+import qgis
 from pkg_resources import DistributionNotFound, VersionConflict
-from PyQt5 import uic
-from qgis import utils
-from qgis.core import Qgis, QgsApplication, QgsMessageLog, QgsSettings
+from qgis.core import Qgis, QgsApplication, QgsSettings
 from qgis.PyQt.QtCore import Qt
 from qgis.PyQt.QtGui import QIcon
-from qgis.PyQt.QtWidgets import (
-    QAction,
-    QDialog,
-    QMessageBox,
-    QProgressDialog,
-    QTableWidgetItem,
-)
+from qgis.PyQt.QtWidgets import QAction, QMessageBox, QProgressDialog
+
+from .log import log, warn
+from .ui import InstallMissingDialog, ShowDialog, SkipDialog
 
 MissingDep = namedtuple("MissingDep", ["package", "requirement", "state"])
-
-
-def log(message):
-    QgsMessageLog.logMessage(message, "QPIP", level=Qgis.MessageLevel.Info)
-
-
-def warn(message):
-    QgsMessageLog.logMessage(message, "QPIP", level=Qgis.MessageLevel.Warning)
 
 
 class Plugin:
@@ -77,8 +64,8 @@ class Plugin:
 
         # Monkey patch qgis.utils
         log("Applying monkey patch to qgis.utils")
-        self._original_loadPlugin = utils.loadPlugin
-        utils.loadPlugin = self.patched_load_plugin
+        self._original_loadPlugin = qgis.utils.loadPlugin
+        qgis.utils.loadPlugin = self.patched_load_plugin
 
         self.iface.initializationCompleted.connect(self.initComplete)
 
@@ -124,7 +111,7 @@ class Plugin:
 
         # Remove monkey patch
         log("Unapplying monkey patch to qgis.utils")
-        utils.loadPlugin = self._original_loadPlugin
+        qgis.utils.loadPlugin = self._original_loadPlugin
 
         # Remove path alterations
         if self.site_packages_path in sys.path:
@@ -201,7 +188,7 @@ class Plugin:
             if could_load:
                 # When called deferred, we also need to start the plugin. This matches implementation
                 # of QgsPluginRegistry::loadPythonPlugin
-                could_start = utils.startPlugin(packageName)
+                could_start = qgis.utils.startPlugin(packageName)
                 if could_start:
                     QgsSettings().setValue("/PythonPlugins/" + packageName, True)
                     QgsSettings().remove("/PythonPlugins/watchDog/" + packageName)
@@ -314,7 +301,7 @@ class Plugin:
         dialog.exec_()
 
     def check(self):
-        self.install_deps_for_packages(utils.active_plugins)
+        self.install_deps_for_packages(qgis.utils.active_plugins)
 
     def toggle_startup(self, toggled):
         # seems QgsSettings doesn't deal well with bools !!
@@ -330,89 +317,3 @@ class Plugin:
 
     def _is_check_on_startup_enabled(self):
         return self.settings.value("check_on_startup", "yes") == "yes"
-
-
-class InstallMissingDialog(QDialog):
-    def __init__(self, missing_deps):
-        super().__init__()
-        uic.loadUi(os.path.join(os.path.dirname(__file__), "ui_install.ui"), self)
-
-        self.checkboxes = {}
-        self.tableWidget.setRowCount(len(missing_deps))
-        for i, dep in enumerate(missing_deps):
-            self.checkboxes[dep] = QTableWidgetItem()
-            self.checkboxes[dep].setCheckState(Qt.Checked)
-            self.tableWidget.setItem(i, 0, QTableWidgetItem(dep.package))
-            self.tableWidget.setItem(i, 1, QTableWidgetItem(dep.requirement))
-            self.tableWidget.setItem(i, 2, QTableWidgetItem(dep.state))
-            self.tableWidget.setItem(i, 3, self.checkboxes[dep])
-
-        if QgsApplication.primaryScreen().logicalDotsPerInch() > 110:
-            self.setMinimumSize(self.minimumWidth() * 2, self.minimumHeight() * 2)
-
-    def deps_to_install(self):
-        deps = []
-        for dep, checkbox in self.checkboxes.items():
-            if checkbox.checkState() == Qt.Checked:
-                deps.append(dep)
-        return deps
-
-    def deps_to_dontask(self):
-        deps = []
-        if self.dontAskAgainCheckbox.isChecked():
-            for dep, checkbox in self.checkboxes.items():
-                if checkbox.checkState() == Qt.Unchecked:
-                    deps.append(dep)
-        return deps
-
-
-class ShowDialog(QDialog):
-    def __init__(self):
-        super().__init__()
-        uic.loadUi(os.path.join(os.path.dirname(__file__), "ui_show.ui"), self)
-
-        distributions = list(metadata.distributions())
-
-        self.checkboxes = {}
-        self.tableWidget.setRowCount(len(distributions))
-        for i, dist in enumerate(distributions):
-            self.tableWidget.setItem(i, 0, QTableWidgetItem(dist.metadata["Name"]))
-            self.tableWidget.setItem(i, 1, QTableWidgetItem(dist.metadata["Version"]))
-            self.tableWidget.setItem(
-                i, 2, QTableWidgetItem(os.path.dirname(dist._path))
-            )
-
-        if QgsApplication.primaryScreen().logicalDotsPerInch() > 110:
-            self.setMinimumSize(self.minimumWidth() * 2, self.minimumHeight() * 2)
-
-
-class SkipDialog(QDialog):
-    def __init__(self):
-        super().__init__()
-        uic.loadUi(os.path.join(os.path.dirname(__file__), "ui_skips.ui"), self)
-
-        self.settings = QgsSettings()
-        self.settings.beginGroup("QPIP")
-
-        self.pushButton.pressed.connect(self.clear_skips)
-
-        self.repopulate()
-
-        if QgsApplication.primaryScreen().logicalDotsPerInch() > 110:
-            self.setMinimumSize(self.minimumWidth() * 2, self.minimumHeight() * 2)
-
-    def repopulate(self):
-
-        self.settings.beginGroup("skips")
-        keys = self.settings.allKeys()
-        self.settings.endGroup()
-
-        self.tableWidget.setRowCount(len(keys))
-        for i, key in enumerate(keys):
-            package, req = key.split("/")
-            self.tableWidget.setItem(i, 0, QTableWidgetItem(package))
-            self.tableWidget.setItem(i, 1, QTableWidgetItem(req))
-
-    def clear_skips(self):
-        self.settings.remove("skips")
-        self.repopulate()
