@@ -95,6 +95,14 @@ class Plugin:
         self.check_action.triggered.connect(self.check)
         self.iface.addPluginToMenu("Python dependencies (QPIP)", self.check_action)
 
+        self.toggle_startup_action = QAction(icon, "Check dependencies on startup")
+        self.toggle_startup_action.setCheckable(True)
+        self.toggle_startup_action.setChecked(self._is_check_on_startup_enabled())
+        self.toggle_startup_action.toggled.connect(self.toggle_startup)
+        self.iface.addPluginToMenu(
+            "Python dependencies (QPIP)", self.toggle_startup_action
+        )
+
     def initComplete(self):
         self._init_complete = True
         if self._defered_packages:
@@ -107,6 +115,9 @@ class Plugin:
         self.iface.removePluginMenu("Python dependencies (QPIP)", self.show_action)
         self.iface.removePluginMenu("Python dependencies (QPIP)", self.skip_action)
         self.iface.removePluginMenu("Python dependencies (QPIP)", self.check_action)
+        self.iface.removePluginMenu(
+            "Python dependencies (QPIP)", self.toggle_startup_action
+        )
 
         # Remove monkey patch
         log("Unapplying monkey patch to qgis.utils")
@@ -124,23 +135,21 @@ class Plugin:
         """
         This replaces qgis.utils.loadPlugin
         """
-        missing_deps = self.list_missing_deps(packageName)
-        if not missing_deps:
-            # We simply load the plugin right away
+        if not self._init_complete and not self._is_check_on_startup_enabled():
+            # During QGIS startup, with initial loading disabled, we simply load the plugin
+            log(f"Check disabled. Normal loading of {packageName}.")
             return self._original_loadPlugin(packageName)
+        elif not self._init_complete:
+            # During QGIS startup, with initial loading enabled, we defer loading
+            log(f"GUI not ready. Deferring loading of {packageName}.")
+            self._defered_packages.append(packageName)
+            return False
         else:
-            # We miss some dependencies
-            log(f"{packageName} has missing dependencies.")
-            if not self._init_complete:
-                # If gui not initialized yet, we defer loading
-                log(f"Initialisation not ready. Deferring loading of {packageName}.")
-                self._defered_packages.append(packageName)
-                return False
-            else:
-                # Otherwise (probably a plugin that was just installed), we install deps and load right away
-                self.pip_install_deps([packageName])
-                self.start_packages([packageName])
-                return True
+            # QGIS ready, we install right away (probably a plugin that was just enabled)
+            log(f"GUI ready. Insalling deps then loading {packageName}.")
+            self.install_deps_for_packages([packageName])
+            self.start_packages([packageName])
+            return True
 
     def install_deps_for_packages(self, packageNames):
         """
@@ -156,8 +165,8 @@ class Plugin:
             missing_deps.extend(self.list_missing_deps(packageName))
 
         deps_to_install = []
+        log(f"{len(missing_deps)} missing dependencies.")
         if len(missing_deps):
-            log(f"{len(missing_deps)} missing dependencies.")
 
             dialog = InstallMissingDialog(missing_deps)
             if dialog.exec_():
@@ -303,6 +312,13 @@ class Plugin:
 
     def check(self):
         self.install_deps_for_packages(utils.active_plugins)
+
+    def toggle_startup(self, toggled):
+        # seems QgsSettings doesn't deal well with bools !!
+        self.settings.setValue("check_on_startup", "yes" if toggled else "no")
+
+    def _is_check_on_startup_enabled(self):
+        return self.settings.value("check_on_startup", "yes") == "yes"
 
 
 class InstallMissingDialog(QDialog):
