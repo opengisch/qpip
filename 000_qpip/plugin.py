@@ -1,4 +1,5 @@
 import os
+import platform
 import subprocess
 import sys
 from collections import namedtuple
@@ -102,6 +103,10 @@ class Plugin:
         self.skip_action = QAction("Show skips")
         self.skip_action.triggered.connect(self.skip)
         self.iface.addPluginToMenu("QPIP", self.skip_action)
+
+        self.show_folder_action = QAction("Show folder")
+        self.show_folder_action.triggered.connect(self.show_folder)
+        self.iface.addPluginToMenu("QPIP", self.show_folder_action)
 
     def initComplete(self):
         self._init_complete = True
@@ -314,6 +319,14 @@ class Plugin:
     def toggle_startup(self, toggled):
         # seems QgsSettings doesn't deal well with bools !!
         self.settings.setValue("check_on_startup", "yes" if toggled else "no")
+
+    def show_folder(self):
+        if platform.system() == "Windows":
+            os.startfile(self.prefix_path)
+        elif platform.system() == "Darwin":
+            subprocess.Popen(["open", self.prefix_path])
+        else:
+            subprocess.Popen(["xdg-open", self.prefix_path])
 
     def _is_check_on_startup_enabled(self):
         return self.settings.value("check_on_startup", "yes") == "yes"
