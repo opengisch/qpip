@@ -21,6 +21,7 @@ class InstallMissingDialog(QDialog):
             self.tableWidget.setItem(i, 1, QTableWidgetItem(dep.requirement))
             self.tableWidget.setItem(i, 2, QTableWidgetItem(dep.state))
             self.tableWidget.setItem(i, 3, self.checkboxes[dep])
+        self.tableWidget.resizeColumnsToContents()
 
         if QgsApplication.primaryScreen().logicalDotsPerInch() > 110:
             self.setMinimumSize(self.minimumWidth() * 2, self.minimumHeight() * 2)
