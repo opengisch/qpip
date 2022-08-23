@@ -1,94 +1,91 @@
 import os
-from importlib import metadata
+from typing import Dict
 
+from pkg_resources import DistributionNotFound, VersionConflict
 from PyQt5 import uic
-from qgis.core import QgsApplication, QgsSettings
-from qgis.PyQt.QtCore import Qt
-from qgis.PyQt.QtWidgets import QDialog, QTableWidgetItem
+from qgis.core import QgsApplication
+from qgis.PyQt.QtWidgets import QComboBox, QDialog, QTableWidgetItem
+
+from .utils import Lib
 
 
-class InstallMissingDialog(QDialog):
-    def __init__(self, missing_deps):
+class MainDialog(QDialog):
+    def __init__(self, libs: Dict[str, Lib]):
         super().__init__()
-        uic.loadUi(os.path.join(os.path.dirname(__file__), "ui_install.ui"), self)
+        uic.loadUi(os.path.join(os.path.dirname(__file__), "ui_dialog.ui"), self)
 
-        self.checkboxes = {}
-        self.tableWidget.setRowCount(len(missing_deps))
-        for i, dep in enumerate(missing_deps):
-            self.checkboxes[dep] = QTableWidgetItem()
-            self.checkboxes[dep].setCheckState(Qt.Checked)
-            self.tableWidget.setItem(i, 0, QTableWidgetItem(dep.package))
-            self.tableWidget.setItem(i, 1, QTableWidgetItem(dep.requirement))
-            self.tableWidget.setItem(i, 2, QTableWidgetItem(dep.state))
-            self.tableWidget.setItem(i, 3, self.checkboxes[dep])
+        self.actionsCombos = []
+
+        self.tableWidget.setRowCount(len(libs))
+        for i, (name, lib) in enumerate(libs.items()):
+
+            def make_widget(error_type):
+                label = []
+                tooltip = []
+                for req in lib.required_by:
+                    if isinstance(req.error, error_type):
+                        label.append(req.plugin)
+                        tooltip.append(f"{req.plugin} requires {req.requirement}")
+                item = QTableWidgetItem("\n".join(label))
+                item.setToolTip("\n".join(tooltip))
+                return item
+
+            # library
+            self.tableWidget.setItem(i, 0, QTableWidgetItem(name))
+
+            # ok
+            self.tableWidget.setItem(i, 1, make_widget(type(None)))
+
+            # conflicting
+            self.tableWidget.setItem(i, 2, make_widget(VersionConflict))
+
+            # missing
+            self.tableWidget.setItem(i, 3, make_widget(DistributionNotFound))
+
+            # installed
+            if lib.installed_dist:
+                label = lib.installed_dist.version
+                tooltip = f"Installed in {lib.installed_dist._path}"
+            else:
+                label = "-"
+                tooltip = "Not installed"
+            if not lib.qpip:
+                label += " [global]"
+            widget = QTableWidgetItem(label)
+            widget.setToolTip(tooltip)
+            self.tableWidget.setItem(i, 4, widget)
+
+            # actions
+            actionCombo = QComboBox()
+            actionCombo.addItem("Do nothing")
+            # actionCombo.addItem("Skip", ("skip", (req.plugin, req.requirement)))
+            for req in lib.required_by:
+                actionCombo.addItem(
+                    f"Install {req.requirement}", ("install", req.requirement)
+                )
+            actionCombo.addItem("Uninstall", ("uninstall", name))
+            if not lib.qpip:
+                actionCombo.setEnabled(False)
+            self.tableWidget.setCellWidget(i, 5, actionCombo)
+            self.actionsCombos.append(actionCombo)
+
         self.tableWidget.resizeColumnsToContents()
 
         if QgsApplication.primaryScreen().logicalDotsPerInch() > 110:
             self.setMinimumSize(self.minimumWidth() * 2, self.minimumHeight() * 2)
 
+    def _selected_actions(self, action_type):
+        for actionCombo in self.actionsCombos:
+            data = actionCombo.currentData()
+            if data is not None:
+                if data[0] == action_type:
+                    yield data[1]
+
     def deps_to_install(self):
-        deps = []
-        for dep, checkbox in self.checkboxes.items():
-            if checkbox.checkState() == Qt.Checked:
-                deps.append(dep)
-        return deps
+        return list(self._selected_actions("install"))
 
-    def deps_to_dontask(self):
-        deps = []
-        if self.dontAskAgainCheckbox.isChecked():
-            for dep, checkbox in self.checkboxes.items():
-                if checkbox.checkState() == Qt.Unchecked:
-                    deps.append(dep)
-        return deps
+    def deps_to_uninstall(self):
+        return list(self._selected_actions("uninstall"))
 
-
-class ShowDialog(QDialog):
-    def __init__(self):
-        super().__init__()
-        uic.loadUi(os.path.join(os.path.dirname(__file__), "ui_show.ui"), self)
-
-        distributions = list(metadata.distributions())
-
-        self.checkboxes = {}
-        self.tableWidget.setRowCount(len(distributions))
-        for i, dist in enumerate(distributions):
-            self.tableWidget.setItem(i, 0, QTableWidgetItem(dist.metadata["Name"]))
-            self.tableWidget.setItem(i, 1, QTableWidgetItem(dist.metadata["Version"]))
-            self.tableWidget.setItem(
-                i, 2, QTableWidgetItem(os.path.dirname(dist._path))
-            )
-
-        if QgsApplication.primaryScreen().logicalDotsPerInch() > 110:
-            self.setMinimumSize(self.minimumWidth() * 2, self.minimumHeight() * 2)
-
-
-class SkipDialog(QDialog):
-    def __init__(self):
-        super().__init__()
-        uic.loadUi(os.path.join(os.path.dirname(__file__), "ui_skips.ui"), self)
-
-        self.settings = QgsSettings()
-        self.settings.beginGroup("QPIP")
-
-        self.pushButton.pressed.connect(self.clear_skips)
-
-        self.repopulate()
-
-        if QgsApplication.primaryScreen().logicalDotsPerInch() > 110:
-            self.setMinimumSize(self.minimumWidth() * 2, self.minimumHeight() * 2)
-
-    def repopulate(self):
-
-        self.settings.beginGroup("skips")
-        keys = self.settings.allKeys()
-        self.settings.endGroup()
-
-        self.tableWidget.setRowCount(len(keys))
-        for i, key in enumerate(keys):
-            package, req = key.split("/")
-            self.tableWidget.setItem(i, 0, QTableWidgetItem(package))
-            self.tableWidget.setItem(i, 1, QTableWidgetItem(req))
-
-    def clear_skips(self):
-        self.settings.remove("skips")
-        self.repopulate()
+    def deps_to_skip(self):
+        return list(self._selected_actions("skip"))

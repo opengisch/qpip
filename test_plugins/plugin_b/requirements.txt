@@ -1,1 +1,2 @@
 chess==1.5.0
+docgen

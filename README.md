@@ -2,7 +2,7 @@
 
 **WARNING - THIS IS IN EARLY DEVELOPEMENT, NOT STABLE/USABLE YET**
 
-**QPIP** is a QGIS plugin allowing to install Python dependencies for other plugins.
+**QPIP** is a QGIS plugin allowing to manage Python dependencies for other plugins.
 
 When loading other plugins, it will check if a `requirements.txt` file exists in its directory. If so, it will verify if the dependencies are met, and display a dialog offering to install missing requirements.
 

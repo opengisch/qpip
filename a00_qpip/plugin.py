@@ -2,7 +2,8 @@ import os
 import platform
 import subprocess
 import sys
-from collections import namedtuple
+from collections import defaultdict, namedtuple
+from importlib import metadata
 from subprocess import (
     PIPE,
     STARTF_USESHOWWINDOW,
@@ -22,7 +23,8 @@ from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtWidgets import QAction, QMessageBox, QProgressDialog
 
 from .log import log, warn
-from .ui import InstallMissingDialog, ShowDialog, SkipDialog
+from .ui import MainDialog
+from .utils import Lib, Req
 
 MissingDep = namedtuple("MissingDep", ["package", "requirement", "state"])
 
@@ -74,15 +76,8 @@ class Plugin:
 
         self.check_action = QAction(icon, "Run dependencies check now")
         self.check_action.triggered.connect(self.check)
+        self.iface.addToolBarIcon(self.check_action)
         self.iface.addPluginToMenu("QPIP", self.check_action)
-
-        self.show_action = QAction("List installed libraries")
-        self.show_action.triggered.connect(self.show)
-        self.iface.addPluginToMenu("QPIP", self.show_action)
-
-        self.skip_action = QAction("Show skips")
-        self.skip_action.triggered.connect(self.skip)
-        self.iface.addPluginToMenu("QPIP", self.skip_action)
 
         self.show_folder_action = QAction("Open current profile library folder")
         self.show_folder_action.triggered.connect(self.show_folder)
@@ -97,14 +92,15 @@ class Plugin:
     def initComplete(self):
         if self._defered_packages:
             log(f"Initialization complete. Loading deferred packages")
-            self.install_deps_for_packages(self._defered_packages)
+            self.check_deps_and_prompt_install(
+                additional_plugins=self._defered_packages
+            )
             self.start_packages(self._defered_packages)
         self._defered_packages = []
 
     def unload(self):
-        self.iface.removePluginMenu("QPIP", self.show_action)
-        self.iface.removePluginMenu("QPIP", self.skip_action)
         self.iface.removePluginMenu("QPIP", self.check_action)
+        self.iface.removeToolBarIcon(self.check_action)
         self.iface.removePluginMenu("QPIP", self.show_folder_action)
         self.iface.removePluginMenu("QPIP", self.toggle_startup_action)
 
@@ -137,40 +133,79 @@ class Plugin:
         else:
             # QGIS ready, we install right away (probably a plugin that was just enabled)
             log(f"GUI ready. Insalling deps then loading {packageName}.")
-            self.install_deps_for_packages([packageName])
+            self.check_deps_and_prompt_install(additional_plugins=[packageName])
             self.start_packages([packageName])
             return True
 
-    def install_deps_for_packages(self, packageNames):
+    def check_deps_and_prompt_install(self, additional_plugins=[], force_gui=False):
         """
-        This collects all missing deps for given packages, then shows a GUI to install them.
+        This checks dependencies for installed plugins and to-be installed plugins. If
+        anything is missing, shows a GUI to install them.
         """
 
-        log(f"Installing deps for {packageNames} before starting them.")
+        plugin_names = [*qgis.utils.active_plugins, *additional_plugins]
 
-        missing_deps = []
-        for packageName in packageNames:
-            missing_deps.extend(self.list_missing_deps(packageName))
+        log(f"Checking deps for the following plugins: {plugin_names}")
 
-        deps_to_install = []
-        log(f"{len(missing_deps)} missing dependencies.")
-        if len(missing_deps):
+        # This will hold all dependencies
+        libs = defaultdict(Lib)
 
-            dialog = InstallMissingDialog(missing_deps)
+        # Loading installed libs
+        for dist in metadata.distributions():
+            name = dist.metadata["Name"]
+            libs[name].installed_dist = dist
+            if os.path.dirname(dist._path) != self.site_packages_path:
+                libs[name].qpip = False
+
+        # Checking requirements of all plugins
+        needs_gui = False
+        for plugin_name in plugin_names:
+            # If requirements.txt is present, we see if we can load it
+            requirements_path = os.path.join(
+                self.plugins_path, plugin_name, "requirements.txt"
+            )
+            if os.path.isfile(requirements_path):
+                log(f"Loading requirements for {plugin_name}")
+                with open(requirements_path, "r") as f:
+                    requirements = pkg_resources.parse_requirements(f)
+                    working_set = pkg_resources.WorkingSet()
+                    for requirement in requirements:
+                        req = Req(plugin_name, str(requirement))
+                        try:
+                            working_set.require(str(requirement))
+                        except (VersionConflict, DistributionNotFound) as e:
+                            needs_gui = True
+                            req.error = e
+                        libs[requirement.key].required_by.append(req)
+
+        if force_gui or needs_gui:
+            dialog = MainDialog(libs)
             if dialog.exec_():
+                log("To uninstall:")
+                log(str(dialog.deps_to_uninstall()))
+
+                log("To install:")
+                log(str(dialog.deps_to_install()))
+
+                # deps_to_skip = dialog.deps_to_skip()
+                deps_to_uninstall = dialog.deps_to_uninstall()
                 deps_to_install = dialog.deps_to_install()
-                deps_to_dontask = dialog.deps_to_dontask()
 
-                for dep in deps_to_dontask:
-                    self.settings.setValue(
-                        f"skips/{dep.package}/{dep.requirement}", True
-                    )
+                # TODO: REENABLE SKIPS
+                # for dep in deps_to_dontask:
+                #     self.settings.setValue(
+                #         f"skips/{dep.package}/{dep.requirement}", True
+                #     )
 
-        if deps_to_install:
-            log(f"Will install selected dependencies : {deps_to_install}")
-            self.pip_install_deps(deps_to_install)
+                if deps_to_uninstall:
+                    log(f"Will uninstall selected dependencies : {deps_to_uninstall}")
+                    self.pip_uninstall_deps(deps_to_uninstall)
+                    sys.path_importer_cache.clear()
 
-            sys.path_importer_cache.clear()
+                if deps_to_install:
+                    log(f"Will install selected dependencies : {deps_to_install}")
+                    self.pip_install_deps(deps_to_install)
+                    sys.path_importer_cache.clear()
 
     def start_packages(self, packageNames):
         """
@@ -191,33 +226,12 @@ class Plugin:
                     QgsSettings().setValue("/PythonPlugins/" + packageName, True)
                     QgsSettings().remove("/PythonPlugins/watchDog/" + packageName)
 
-    def list_missing_deps(self, packageName):
-        missing_deps = []
-        # If requirements.txt is present, we see if we can load it
-        requirements_path = os.path.join(
-            self.plugins_path, packageName, "requirements.txt"
-        )
-        if os.path.isfile(requirements_path):
-            log(f"Loading requirements for {packageName}")
-
-            with open(requirements_path, "r") as f:
-                requirements = pkg_resources.parse_requirements(f)
-                working_set = pkg_resources.WorkingSet()
-                for requirement in requirements:
-                    req = str(requirement)
-                    if self.settings.value(f"skips/{packageName}/{req}", False):
-                        log(f"Skipping {req} required by {packageName}.")
-                        continue
-
-                    try:
-                        working_set.require(req)
-                    except (DistributionNotFound, VersionConflict) as e:
-                        if isinstance(e, DistributionNotFound):
-                            error = "missing"
-                        else:  # if isinstance(e, VersionConflict):
-                            error = f"conflict ({e.dist})"
-                        missing_deps.append(MissingDep(packageName, req, error))
-        return missing_deps
+    def pip_uninstall_deps(self, deps_to_uninstall, extra_args=[]):
+        """
+        Unnstalls given deps with pip
+        """
+        # TODO: IMPLEMENT
+        raise NotImplemented()
 
     def pip_install_deps(self, deps_to_install, extra_args=[]):
         """
@@ -290,16 +304,8 @@ class Plugin:
                 level=Qgis.Success,
             )
 
-    def show(self):
-        dialog = ShowDialog()
-        dialog.exec_()
-
-    def skip(self):
-        dialog = SkipDialog()
-        dialog.exec_()
-
     def check(self):
-        self.install_deps_for_packages(qgis.utils.active_plugins)
+        self.check_deps_and_prompt_install(force_gui=True)
 
     def toggle_startup(self, toggled):
         # seems QgsSettings doesn't deal well with bools !!
