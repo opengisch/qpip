@@ -72,17 +72,11 @@ class Plugin:
 
         icon = QIcon(os.path.join(self.plugin_dir, "icon.svg"))
 
-        self.check_action = QAction(icon, "Check dependencies now")
+        self.check_action = QAction(icon, "Run dependencies check now")
         self.check_action.triggered.connect(self.check)
         self.iface.addPluginToMenu("QPIP", self.check_action)
 
-        self.toggle_startup_action = QAction("Check dependencies on startup")
-        self.toggle_startup_action.setCheckable(True)
-        self.toggle_startup_action.setChecked(self._is_check_on_startup_enabled())
-        self.toggle_startup_action.toggled.connect(self.toggle_startup)
-        self.iface.addPluginToMenu("QPIP", self.toggle_startup_action)
-
-        self.show_action = QAction("Show installed")
+        self.show_action = QAction("List installed libraries")
         self.show_action.triggered.connect(self.show)
         self.iface.addPluginToMenu("QPIP", self.show_action)
 
@@ -90,9 +84,15 @@ class Plugin:
         self.skip_action.triggered.connect(self.skip)
         self.iface.addPluginToMenu("QPIP", self.skip_action)
 
-        self.show_folder_action = QAction("Show folder")
+        self.show_folder_action = QAction("Open current profile library folder")
         self.show_folder_action.triggered.connect(self.show_folder)
         self.iface.addPluginToMenu("QPIP", self.show_folder_action)
+
+        self.toggle_startup_action = QAction("Check dependencies on startup")
+        self.toggle_startup_action.setCheckable(True)
+        self.toggle_startup_action.setChecked(self._is_check_on_startup_enabled())
+        self.toggle_startup_action.toggled.connect(self.toggle_startup)
+        self.iface.addPluginToMenu("QPIP", self.toggle_startup_action)
 
     def initComplete(self):
         if self._defered_packages:
@@ -105,6 +105,7 @@ class Plugin:
         self.iface.removePluginMenu("QPIP", self.show_action)
         self.iface.removePluginMenu("QPIP", self.skip_action)
         self.iface.removePluginMenu("QPIP", self.check_action)
+        self.iface.removePluginMenu("QPIP", self.show_folder_action)
         self.iface.removePluginMenu("QPIP", self.toggle_startup_action)
 
         # Remove monkey patch
