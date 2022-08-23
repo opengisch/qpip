@@ -34,7 +34,6 @@ class Plugin:
         self.iface = iface
         self.plugin_dir = os.path.dirname(__file__)
         self._defered_packages = []
-        self._init_complete = False
         self.settings = QgsSettings()
         self.settings.beginGroup("QPIP")
 
@@ -96,7 +95,6 @@ class Plugin:
         self.iface.addPluginToMenu("QPIP", self.show_folder_action)
 
     def initComplete(self):
-        self._init_complete = True
         if self._defered_packages:
             log(f"Initialization complete. Loading deferred packages")
             self.install_deps_for_packages(self._defered_packages)
@@ -125,15 +123,16 @@ class Plugin:
         """
         This replaces qgis.utils.loadPlugin
         """
-        if not self._init_complete and not self._is_check_on_startup_enabled():
-            # During QGIS startup, with initial loading disabled, we simply load the plugin
-            log(f"Check disabled. Normal loading of {packageName}.")
-            return self._original_loadPlugin(packageName)
-        elif not self._init_complete:
-            # During QGIS startup, with initial loading enabled, we defer loading
-            log(f"GUI not ready. Deferring loading of {packageName}.")
-            self._defered_packages.append(packageName)
-            return False
+        if not self._is_qgis_loaded():
+            if not self._is_check_on_startup_enabled():
+                # During QGIS startup, with initial loading disabled, we simply load the plugin
+                log(f"Check disabled. Normal loading of {packageName}.")
+                return self._original_loadPlugin(packageName)
+            else:
+                # During QGIS startup, with initial loading enabled, we defer loading
+                log(f"GUI not ready. Deferring loading of {packageName}.")
+                self._defered_packages.append(packageName)
+                return False
         else:
             # QGIS ready, we install right away (probably a plugin that was just enabled)
             log(f"GUI ready. Insalling deps then loading {packageName}.")
@@ -145,8 +144,6 @@ class Plugin:
         """
         This collects all missing deps for given packages, then shows a GUI to install them.
         """
-
-        assert self._init_complete
 
         log(f"Installing deps for {packageNames} before starting them.")
 
@@ -317,3 +314,6 @@ class Plugin:
 
     def _is_check_on_startup_enabled(self):
         return self.settings.value("check_on_startup", "yes") == "yes"
+
+    def _is_qgis_loaded(self):
+        return self.iface.mainWindow().isVisible()
