@@ -76,3 +76,4 @@ Deployements to QGIS plugin repository are made automatically by Github workflow
 ## Roadmap
 
 - [ ] automated tests on supported QGIS versions
+- [ ] (long term) integrate functionality in QGIS core
