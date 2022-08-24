@@ -4,25 +4,15 @@ import subprocess
 import sys
 from collections import defaultdict, namedtuple
 from importlib import metadata
-from subprocess import (
-    PIPE,
-    STARTF_USESHOWWINDOW,
-    STARTF_USESTDHANDLES,
-    STARTUPINFO,
-    STDOUT,
-    SW_HIDE,
-    Popen,
-)
 
 import pkg_resources
 import qgis
 from pkg_resources import DistributionNotFound, VersionConflict
-from qgis.core import Qgis, QgsApplication, QgsSettings
-from qgis.PyQt.QtCore import Qt
-from qgis.PyQt.QtWidgets import QAction, QMessageBox, QProgressDialog
+from qgis.core import QgsApplication, QgsSettings
+from qgis.PyQt.QtWidgets import QAction
 
 from .ui import MainDialog
-from .utils import Lib, Req, icon, log, warn
+from .utils import Lib, Req, icon, log, run_cmd
 
 MissingDep = namedtuple("MissingDep", ["package", "requirement", "state"])
 
@@ -179,31 +169,19 @@ class Plugin:
         if force_gui or needs_gui:
             dialog = MainDialog(libs.values())
             if dialog.exec_():
-                log("To uninstall:")
-                log(str(dialog.deps_to_uninstall()))
 
-                log("To install:")
-                log(str(dialog.deps_to_install()))
+                reqs_to_uninstall = dialog.reqs_to_uninstall()
+                reqs_to_install = dialog.reqs_to_install()
 
-                # deps_to_skip = dialog.deps_to_skip()
-                deps_to_uninstall = dialog.deps_to_uninstall()
-                deps_to_install = dialog.deps_to_install()
+                if reqs_to_uninstall:
+                    log(f"Will uninstall selected dependencies : {reqs_to_uninstall}")
+                    self.pip_uninstall_reqs(reqs_to_uninstall)
 
-                # TODO: REENABLE SKIPS
-                # for dep in deps_to_dontask:
-                #     self.settings.setValue(
-                #         f"skips/{dep.package}/{dep.requirement}", True
-                #     )
+                if reqs_to_install:
+                    log(f"Will install selected dependencies : {reqs_to_install}")
+                    self.pip_install_reqs(reqs_to_install)
 
-                if deps_to_uninstall:
-                    log(f"Will uninstall selected dependencies : {deps_to_uninstall}")
-                    self.pip_uninstall_deps(deps_to_uninstall)
-                    sys.path_importer_cache.clear()
-
-                if deps_to_install:
-                    log(f"Will install selected dependencies : {deps_to_install}")
-                    self.pip_install_deps(deps_to_install)
-                    sys.path_importer_cache.clear()
+                sys.path_importer_cache.clear()
 
     def start_packages(self, packageNames):
         """
@@ -224,83 +202,42 @@ class Plugin:
                     QgsSettings().setValue("/PythonPlugins/" + packageName, True)
                     QgsSettings().remove("/PythonPlugins/watchDog/" + packageName)
 
-    def pip_uninstall_deps(self, deps_to_uninstall, extra_args=[]):
+    def pip_uninstall_reqs(self, reqs_to_uninstall, extra_args=[]):
         """
         Unnstalls given deps with pip
         """
-        # TODO: IMPLEMENT
-        raise NotImplemented()
+        log(f"Will pip uninstall {reqs_to_uninstall}")
 
-    def pip_install_deps(self, deps_to_install, extra_args=[]):
+        run_cmd(
+            [
+                "python",
+                "-um",
+                "pip",
+                "uninstall",
+                *reqs_to_uninstall,
+            ],
+            f"uninstalling {len(reqs_to_uninstall)} requirements",
+        )
+
+    def pip_install_reqs(self, reqs_to_install):
         """
-        Installs given deps with pip
+        Installs given reqs with pip
         """
         os.makedirs(self.prefix_path, exist_ok=True)
-        reqs = [dep.requirement for dep in deps_to_install]
-        log(f"Will pip install {reqs}")
-        pip_args = [
-            "python",
-            "-um",
-            "pip",
-            "install",
-            *reqs,
-            "--prefix",
-            self.prefix_path,
-            *extra_args,
-        ]
+        log(f"Will pip install {reqs_to_install}")
 
-        progress_dlg = QProgressDialog(
-            "Installing dependencies", "Abort", 0, 0, parent=self.iface.mainWindow()
+        run_cmd(
+            [
+                "python",
+                "-um",
+                "pip",
+                "install",
+                *reqs_to_install,
+                "--prefix",
+                self.prefix_path,
+            ],
+            f"installing {len(reqs_to_install)} requirements",
         )
-        progress_dlg.setWindowModality(Qt.WindowModal)
-        progress_dlg.show()
-
-        startupinfo = None
-        if os.name == "nt":
-            startupinfo = STARTUPINFO()
-            startupinfo.dwFlags |= STARTF_USESTDHANDLES | STARTF_USESHOWWINDOW
-            startupinfo.wShowWindow = SW_HIDE
-
-        process = Popen(pip_args, stdout=PIPE, stderr=STDOUT, startupinfo=startupinfo)
-
-        full_output = ""
-        while True:
-            QgsApplication.processEvents()
-            try:
-                # FIXME : this doesn't seem to timeout
-                out, _ = process.communicate(timeout=0.1)
-                output = out.decode(errors="replace").strip()
-                full_output += output
-                if output:
-                    progress_dlg.setLabelText(output)
-                    log(output)
-            except subprocess.TimeoutExpired:
-                pass
-
-            if progress_dlg.wasCanceled():
-                process.kill()
-            if process.poll() is not None:
-                break
-
-        progress_dlg.close()
-
-        if process.returncode != 0:
-            warn(f"Installation failed.")
-            message = QMessageBox(
-                QMessageBox.Warning,
-                "Installation failed",
-                f"Installation of dependecies failed (code {process.returncode}).\nSee logs for more information.",
-                parent=self.iface.mainWindow(),
-            )
-            message.setDetailedText(full_output)
-            message.exec_()
-        else:
-            log("Installation succeeded.")
-            self.iface.messageBar().pushMessage(
-                "Success",
-                f"Installed {len(deps_to_install)} requirements",
-                level=Qgis.Success,
-            )
 
     def check(self):
         self.check_deps_and_prompt_install(force_gui=True)

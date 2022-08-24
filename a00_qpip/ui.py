@@ -147,11 +147,11 @@ class MainDialog(QDialog):
                 if data[0] == action_type:
                     yield data[1]
 
-    def deps_to_install(self):
+    def reqs_to_install(self):
         return list(self._selected_actions("install"))
 
-    def deps_to_uninstall(self):
+    def reqs_to_uninstall(self):
         return list(self._selected_actions("uninstall"))
 
-    def deps_to_skip(self):
+    def reqs_to_skip(self):
         return list(self._selected_actions("skip"))
