@@ -19,7 +19,7 @@ changelog=Version 0.0 (initial)
 tags=plugin, pip, dependencies, dependency
 homepage=https://github.com/opengisch/qpip
 category=Plugin
-icon=icon.svg
+icon=icons/qpip.svg
 experimental=True
 deprecated=False
 

@@ -19,12 +19,10 @@ import qgis
 from pkg_resources import DistributionNotFound, VersionConflict
 from qgis.core import Qgis, QgsApplication, QgsSettings
 from qgis.PyQt.QtCore import Qt
-from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtWidgets import QAction, QMessageBox, QProgressDialog
 
-from .log import log, warn
 from .ui import MainDialog
-from .utils import Lib, Req
+from .utils import Lib, Req, icon, log, warn
 
 MissingDep = namedtuple("MissingDep", ["package", "requirement", "state"])
 
@@ -34,7 +32,6 @@ class Plugin:
 
     def __init__(self, iface):
         self.iface = iface
-        self.plugin_dir = os.path.dirname(__file__)
         self._defered_packages = []
         self.settings = QgsSettings()
         self.settings.beginGroup("QPIP")
@@ -72,9 +69,7 @@ class Plugin:
 
     def initGui(self):
 
-        icon = QIcon(os.path.join(self.plugin_dir, "icon.svg"))
-
-        self.check_action = QAction(icon, "Run dependencies check now")
+        self.check_action = QAction(icon("qpip.svg"), "Run dependencies check now")
         self.check_action.triggered.connect(self.check)
         self.iface.addToolBarIcon(self.check_action)
         self.iface.addPluginToMenu("QPIP", self.check_action)

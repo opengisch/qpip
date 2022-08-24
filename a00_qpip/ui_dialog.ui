@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>683</width>
-    <height>400</height>
+    <height>387</height>
    </rect>
   </property>
   <property name="minimumSize">
@@ -48,7 +48,7 @@
      <item>
       <widget class="QToolButton" name="default_button">
        <property name="text">
-        <string>Selection default actions</string>
+        <string>Default actions</string>
        </property>
       </widget>
      </item>
@@ -56,6 +56,9 @@
    </item>
    <item>
     <widget class="QTableWidget" name="table_widget">
+     <property name="selectionMode">
+      <enum>QAbstractItemView::NoSelection</enum>
+     </property>
      <property name="selectionBehavior">
       <enum>QAbstractItemView::SelectRows</enum>
      </property>
@@ -113,12 +116,25 @@
     </widget>
    </item>
    <item>
-    <widget class="QLabel" name="label_2">
+    <widget class="QLabel" name="disclaimer_a_label">
      <property name="styleSheet">
       <string notr="true">font-style: italic</string>
      </property>
      <property name="text">
-      <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;There is no guarantee that these requirements are compatible with previously installed plugins which could lead to this dialog reappearing on each reload. In that case, contact the plugin authors to see if they can sort the situation by relaxing their requirements. In the mean time, you can use two distinct user profiles.&lt;/p&gt;&lt;p&gt;Updating/uninstalling libraries not managed by QPIP (marked with [global] in the list) &lt;span style=&quot; font-weight:600;&quot;&gt;is not recommended&lt;/span&gt; and may require to run QGIS with administrator privileges.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+      <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;There is no guarantee that these requirements are compatible with previously installed plugins which could lead to this dialog reappearing on each reload. In that case, contact the plugin authors to see if they can sort the situation by relaxing their requirements. In the mean time, you can use two distinct user profiles.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+     </property>
+     <property name="wordWrap">
+      <bool>true</bool>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QLabel" name="disclaimer_b_label">
+     <property name="styleSheet">
+      <string notr="true">font-style: italic</string>
+     </property>
+     <property name="text">
+      <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Updating/uninstalling libraries not managed by QPIP (marked with [global] in the list) &lt;span style=&quot; font-weight:600;&quot;&gt;is not recommended&lt;/span&gt; and may require to run QGIS with administrator privileges.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
      </property>
      <property name="wordWrap">
       <bool>true</bool>

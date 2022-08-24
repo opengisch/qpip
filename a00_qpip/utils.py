@@ -1,7 +1,18 @@
+import os
 from importlib.metadata import Distribution
 from typing import List, Union
 
 from pkg_resources import ResolutionError
+from qgis.core import Qgis, QgsMessageLog
+from qgis.PyQt.QtGui import QIcon
+
+
+def log(message):
+    QgsMessageLog.logMessage(message, "QPIP", level=Qgis.MessageLevel.Info)
+
+
+def warn(message):
+    QgsMessageLog.logMessage(message, "QPIP", level=Qgis.MessageLevel.Warning)
 
 
 class Req:
@@ -17,3 +28,7 @@ class Lib:
         self.required_by: List[Req] = []
         self.installed_dist: Distribution = None
         self.qpip: bool = True
+
+
+def icon(name):
+    return QIcon(os.path.join(os.path.dirname(__file__), "icons", name))

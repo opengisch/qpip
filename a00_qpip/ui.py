@@ -4,9 +4,10 @@ from typing import Dict, List
 from pkg_resources import DistributionNotFound, VersionConflict
 from PyQt5 import uic
 from qgis.core import QgsApplication
+from qgis.PyQt.QtGui import QColor
 from qgis.PyQt.QtWidgets import QComboBox, QDialog, QTableWidgetItem
 
-from .utils import Lib
+from .utils import Lib, icon
 
 
 class MainDialog(QDialog):
@@ -64,12 +65,31 @@ class MainDialog(QDialog):
             action_combo.addItem("Do nothing")
             for req in lib.required_by:
                 action_combo.addItem(
-                    f"Install {req.requirement}", ("install", req.requirement)
+                    icon("qpip.svg"),
+                    f"Install {req.requirement}",
+                    ("install", req.requirement),
                 )
             if lib.installed_dist != None:
-                action_combo.addItem("Uninstall", ("uninstall", lib.name))
+                action_combo.addItem(
+                    icon("uninstall.svg"), "Uninstall", ("uninstall", lib.name)
+                )
             self.table_widget.setCellWidget(i, 5, action_combo)
             self.action_combos[lib] = action_combo
+
+            # color
+            if any(isinstance(req.error, VersionConflict) for req in lib.required_by):
+                color = QColor("#f7e463")
+            elif any(
+                isinstance(req.error, DistributionNotFound) for req in lib.required_by
+            ):
+                color = QColor("#eb6060")
+            elif not lib.required_by:
+                color = QColor("#ffffff")
+            else:
+                color = QColor("#7cd992")
+            for j in range(1, 4):
+                self.table_widget.item(i, j).setBackground(color)
+
         self.table_widget.resizeColumnsToContents()
 
         self._default_all()
@@ -88,10 +108,11 @@ class MainDialog(QDialog):
         self._filter()
 
     def _filter(self):
+
         for i, lib in enumerate(self.libs):
             self.table_widget.showRow(i)
             if self.action_combos[lib].currentIndex() != 0:
-                # Never skip libraries with selection actions
+                # Never skip libraries with selected actions
                 pass
             elif self.filter_combobox.currentIndex() == 0:
                 # Skip libraries without requirement issue
