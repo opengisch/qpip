@@ -11,11 +11,14 @@ from .utils import Lib, icon
 
 
 class MainDialog(QDialog):
-    def __init__(self, libs: List[Lib]):
+    def __init__(self, libs: List[Lib], check_on_startup, check_on_install):
         super().__init__()
         uic.loadUi(os.path.join(os.path.dirname(__file__), "ui_dialog.ui"), self)
 
         self.libs = libs
+
+        self.startup_checkbox.setChecked(check_on_startup)
+        self.install_checkbox.setChecked(check_on_install)
 
         self.action_combos: Dict[Lib, QComboBox] = {}
         self.table_widget.setRowCount(0)
@@ -97,9 +100,10 @@ class MainDialog(QDialog):
         if QgsApplication.primaryScreen().logicalDotsPerInch() > 110:
             self.setMinimumSize(self.minimumWidth() * 2, self.minimumHeight() * 2)
 
-        self.filter_combobox.addItem("Missing and conflicting")
+        self.filter_combobox.addItem("Missing or conflicting only")
         self.filter_combobox.addItem("Required by plugins")
         self.filter_combobox.addItem("Show everything")
+        self.filter_combobox.setCurrentIndex(1)
 
         self.filter_combobox.currentIndexChanged.connect(self._filter)
         self.ignore_button.pressed.connect(self._ignore_all)
@@ -147,11 +151,18 @@ class MainDialog(QDialog):
                 if data[0] == action_type:
                     yield data[1]
 
+    @property
     def reqs_to_install(self):
         return list(self._selected_actions("install"))
 
+    @property
     def reqs_to_uninstall(self):
         return list(self._selected_actions("uninstall"))
 
-    def reqs_to_skip(self):
-        return list(self._selected_actions("skip"))
+    @property
+    def check_on_startup(self):
+        return self.startup_checkbox.isChecked()
+
+    @property
+    def check_on_install(self):
+        return self.install_checkbox.isChecked()

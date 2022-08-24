@@ -68,12 +68,6 @@ class Plugin:
         self.show_folder_action.triggered.connect(self.show_folder)
         self.iface.addPluginToMenu("QPIP", self.show_folder_action)
 
-        self.toggle_startup_action = QAction("Check dependencies on startup")
-        self.toggle_startup_action.setCheckable(True)
-        self.toggle_startup_action.setChecked(self._is_check_on_startup_enabled())
-        self.toggle_startup_action.toggled.connect(self.toggle_startup)
-        self.iface.addPluginToMenu("QPIP", self.toggle_startup_action)
-
     def initComplete(self):
         if self._defered_packages:
             log(f"Initialization complete. Loading deferred packages")
@@ -87,7 +81,6 @@ class Plugin:
         self.iface.removePluginMenu("QPIP", self.check_action)
         self.iface.removeToolBarIcon(self.check_action)
         self.iface.removePluginMenu("QPIP", self.show_folder_action)
-        self.iface.removePluginMenu("QPIP", self.toggle_startup_action)
 
         # Remove monkey patch
         log("Unapplying monkey patch to qgis.utils")
@@ -106,21 +99,29 @@ class Plugin:
         This replaces qgis.utils.loadPlugin
         """
         if not self._is_qgis_loaded():
-            if not self._is_check_on_startup_enabled():
-                # During QGIS startup, with initial loading disabled, we simply load the plugin
-                log(f"Check disabled. Normal loading of {packageName}.")
+            # During QGIS startup
+            log(f"Loading {packageName} (GUI is no yet ready).")
+            if not self._check_on_startup():
+                # With initial loading disabled, we simply load the plugin
+                log(f"Check on startup disabled. Normal loading of {packageName}.")
                 return self._original_loadPlugin(packageName)
             else:
-                # During QGIS startup, with initial loading enabled, we defer loading
-                log(f"GUI not ready. Deferring loading of {packageName}.")
+                # With initial loading enabled, we defer loading
+                log(f"Check on startup enabled, we defer loading of {packageName}.")
                 self._defered_packages.append(packageName)
                 return False
         else:
-            # QGIS ready, we install right away (probably a plugin that was just enabled)
-            log(f"GUI ready. Insalling deps then loading {packageName}.")
-            self.check_deps_and_prompt_install(additional_plugins=[packageName])
-            self.start_packages([packageName])
-            return True
+            # QGIS ready, a plugin probably was just enabled in the manager
+            log(f"Loading {packageName} (GUI is ready).")
+            if not self._check_on_install():
+                # With loading on install disabled, we simply load the plugin
+                log(f"Check on install disabled. Normal loading of {packageName}.")
+                return self._original_loadPlugin(packageName)
+            else:
+                log(f"Check on install enabled, we check {packageName}.")
+                self.check_deps_and_prompt_install(additional_plugins=[packageName])
+                self.start_packages([packageName])
+                return True
 
     def check_deps_and_prompt_install(self, additional_plugins=[], force_gui=False):
         """
@@ -167,21 +168,30 @@ class Plugin:
                         libs[requirement.key].required_by.append(req)
 
         if force_gui or needs_gui:
-            dialog = MainDialog(libs.values())
+            dialog = MainDialog(
+                libs.values(), self._check_on_startup(), self._check_on_install()
+            )
             if dialog.exec_():
 
-                reqs_to_uninstall = dialog.reqs_to_uninstall()
-                reqs_to_install = dialog.reqs_to_install()
-
+                reqs_to_uninstall = dialog.reqs_to_uninstall
                 if reqs_to_uninstall:
                     log(f"Will uninstall selected dependencies : {reqs_to_uninstall}")
                     self.pip_uninstall_reqs(reqs_to_uninstall)
 
+                reqs_to_install = dialog.reqs_to_install
                 if reqs_to_install:
                     log(f"Will install selected dependencies : {reqs_to_install}")
                     self.pip_install_reqs(reqs_to_install)
 
                 sys.path_importer_cache.clear()
+
+            # Save these even if the dialog was closed
+            self.settings.setValue(
+                "check_on_startup", "yes" if dialog.check_on_startup else "no"
+            )
+            self.settings.setValue(
+                "check_on_install", "yes" if dialog.check_on_install else "no"
+            )
 
     def start_packages(self, packageNames):
         """
@@ -214,6 +224,7 @@ class Plugin:
                 "-um",
                 "pip",
                 "uninstall",
+                "-y",
                 *reqs_to_uninstall,
             ],
             f"uninstalling {len(reqs_to_uninstall)} requirements",
@@ -254,8 +265,11 @@ class Plugin:
         else:
             subprocess.Popen(["xdg-open", self.prefix_path])
 
-    def _is_check_on_startup_enabled(self):
+    def _check_on_startup(self):
         return self.settings.value("check_on_startup", "yes") == "yes"
+
+    def _check_on_install(self):
+        return self.settings.value("check_on_install", "yes") == "yes"
 
     def _is_qgis_loaded(self):
         return self.iface.mainWindow().isVisible()
