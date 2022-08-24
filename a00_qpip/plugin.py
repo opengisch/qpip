@@ -153,6 +153,7 @@ class Plugin:
         # Loading installed libs
         for dist in metadata.distributions():
             name = dist.metadata["Name"]
+            libs[name].name = name
             libs[name].installed_dist = dist
             if os.path.dirname(dist._path) != self.site_packages_path:
                 libs[name].qpip = False
@@ -170,16 +171,18 @@ class Plugin:
                     requirements = pkg_resources.parse_requirements(f)
                     working_set = pkg_resources.WorkingSet()
                     for requirement in requirements:
-                        req = Req(plugin_name, str(requirement))
                         try:
                             working_set.require(str(requirement))
+                            error = None
                         except (VersionConflict, DistributionNotFound) as e:
                             needs_gui = True
-                            req.error = e
+                            error = e
+                        req = Req(plugin_name, str(requirement), error)
+                        libs[requirement.key].name = requirement.key
                         libs[requirement.key].required_by.append(req)
 
         if force_gui or needs_gui:
-            dialog = MainDialog(libs)
+            dialog = MainDialog(libs.values())
             if dialog.exec_():
                 log("To uninstall:")
                 log(str(dialog.deps_to_uninstall()))

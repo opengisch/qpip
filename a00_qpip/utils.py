@@ -1,17 +1,19 @@
-from dataclasses import dataclass, field
 from importlib.metadata import Distribution
-from typing import List
+from typing import List, Union
+
+from pkg_resources import ResolutionError
 
 
-@dataclass
 class Req:
-    plugin: str = None
-    requirement: str = None
-    error = None
+    def __init__(self, plugin, requirement, error):
+        self.plugin: str = plugin
+        self.requirement: str = requirement
+        self.error: Union[None, ResolutionError] = error
 
 
-@dataclass
 class Lib:
-    required_by: List[Req] = field(default_factory=list)
-    installed_dist: Distribution = None
-    qpip: bool = True
+    def __init__(self):
+        self.name: str = None
+        self.required_by: List[Req] = []
+        self.installed_dist: Distribution = None
+        self.qpip: bool = True
