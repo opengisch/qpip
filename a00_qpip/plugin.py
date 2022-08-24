@@ -64,7 +64,7 @@ class Plugin:
         self.iface.addToolBarIcon(self.check_action)
         self.iface.addPluginToMenu("QPIP", self.check_action)
 
-        self.show_folder_action = QAction("Open current profile library folder")
+        self.show_folder_action = QAction("Show library folder in explorer")
         self.show_folder_action.triggered.connect(self.show_folder)
         self.iface.addPluginToMenu("QPIP", self.show_folder_action)
 
@@ -253,10 +253,6 @@ class Plugin:
     def check(self):
         self.check_deps_and_prompt_install(force_gui=True)
 
-    def toggle_startup(self, toggled):
-        # seems QgsSettings doesn't deal well with bools !!
-        self.settings.setValue("check_on_startup", "yes" if toggled else "no")
-
     def show_folder(self):
         if platform.system() == "Windows":
             os.startfile(self.prefix_path)
@@ -266,7 +262,7 @@ class Plugin:
             subprocess.Popen(["xdg-open", self.prefix_path])
 
     def _check_on_startup(self):
-        return self.settings.value("check_on_startup", "yes") == "yes"
+        return self.settings.value("check_on_startup", "no") == "yes"
 
     def _check_on_install(self):
         return self.settings.value("check_on_install", "yes") == "yes"
