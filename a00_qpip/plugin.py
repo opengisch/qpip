@@ -58,7 +58,6 @@ class Plugin:
         self.iface.initializationCompleted.connect(self.initComplete)
 
     def initGui(self):
-
         self.check_action = QAction(icon("qpip.svg"), "Run dependencies check now")
         self.check_action.triggered.connect(self.check)
         self.iface.addToolBarIcon(self.check_action)
@@ -172,7 +171,6 @@ class Plugin:
                 libs.values(), self._check_on_startup(), self._check_on_install()
             )
             if dialog.exec_():
-
                 reqs_to_uninstall = dialog.reqs_to_uninstall
                 if reqs_to_uninstall:
                     log(f"Will uninstall selected dependencies : {reqs_to_uninstall}")

@@ -23,7 +23,6 @@ class MainDialog(QDialog):
         self.action_combos: Dict[Lib, QComboBox] = {}
         self.table_widget.setRowCount(0)
         for i, lib in enumerate(self.libs):
-
             # Add row
             self.table_widget.insertRow(self.table_widget.rowCount())
 
@@ -112,7 +111,6 @@ class MainDialog(QDialog):
         self._filter()
 
     def _filter(self):
-
         for i, lib in enumerate(self.libs):
             self.table_widget.showRow(i)
             if self.action_combos[lib].currentIndex() != 0:

@@ -48,7 +48,6 @@ def icon(name):
 
 
 def run_cmd(args, description="running a system command"):
-
     progress_dlg = QProgressDialog(
         description, "Abort", 0, 0, parent=iface.mainWindow()
     )
