@@ -4,6 +4,7 @@ from typing import Dict, List
 from pkg_resources import DistributionNotFound, VersionConflict
 from PyQt5 import uic
 from qgis.core import QgsApplication
+from qgis.PyQt.QtCore import Qt
 from qgis.PyQt.QtGui import QColor
 from qgis.PyQt.QtWidgets import QComboBox, QDialog, QTableWidgetItem
 
@@ -26,28 +27,23 @@ class MainDialog(QDialog):
             # Add row
             self.table_widget.insertRow(self.table_widget.rowCount())
 
-            def make_widget(error_type):
+            def make_widget(label, tooltip=None):
+                item = QTableWidgetItem(label)
+                item.setToolTip(tooltip)
+                item.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
+                return item
+
+            def make_error_widget(error_type):
                 label = []
                 tooltip = []
                 for req in lib.required_by:
                     if isinstance(req.error, error_type):
                         label.append(req.plugin)
-                        tooltip.append(f"{req.plugin} requires {req.requirement}")
-                item = QTableWidgetItem("\n".join(label))
-                item.setToolTip("\n".join(tooltip))
-                return item
+                        tooltip.append(f"{req.requirement} [by {req.plugin}]")
+                return make_widget(" ".join(label), "\n".join(tooltip))
 
             # library
-            self.table_widget.setItem(i, 0, QTableWidgetItem(lib.name))
-
-            # ok
-            self.table_widget.setItem(i, 1, make_widget(type(None)))
-
-            # conflicting
-            self.table_widget.setItem(i, 2, make_widget(VersionConflict))
-
-            # missing
-            self.table_widget.setItem(i, 3, make_widget(DistributionNotFound))
+            self.table_widget.setItem(i, 0, make_widget(lib.name))
 
             # installed
             if lib.installed_dist:
@@ -58,9 +54,16 @@ class MainDialog(QDialog):
                 tooltip = "Not installed"
             if not lib.qpip:
                 label += " [global]"
-            widget = QTableWidgetItem(label)
-            widget.setToolTip(tooltip)
-            self.table_widget.setItem(i, 4, widget)
+            self.table_widget.setItem(i, 1, make_widget(label, tooltip))
+
+            # ok
+            self.table_widget.setItem(i, 2, make_error_widget(type(None)))
+
+            # conflicting
+            self.table_widget.setItem(i, 3, make_error_widget(VersionConflict))
+
+            # missing
+            self.table_widget.setItem(i, 4, make_error_widget(DistributionNotFound))
 
             # actions
             action_combo = QComboBox()
@@ -78,19 +81,25 @@ class MainDialog(QDialog):
             self.table_widget.setCellWidget(i, 5, action_combo)
             self.action_combos[lib] = action_combo
 
-            # color
+            # row color (gray out system deps)
+            row_color = QColor("#ffffff") if lib.qpip else QColor("#aaaaaa")
+            for j in range(0, 5):
+                self.table_widget.item(i, j).setBackground(row_color)
+
+            # cell colors (red/orange/green depending on errors)
             if any(isinstance(req.error, VersionConflict) for req in lib.required_by):
                 color = QColor("#f7e463")
             elif any(
                 isinstance(req.error, DistributionNotFound) for req in lib.required_by
             ):
                 color = QColor("#eb6060")
-            elif not lib.required_by:
-                color = QColor("#ffffff")
-            else:
+            elif lib.required_by:
                 color = QColor("#7cd992")
-            for j in range(1, 4):
-                self.table_widget.item(i, j).setBackground(color)
+            else:
+                color = None
+            if color:
+                for j in range(2, 5):
+                    self.table_widget.item(i, j).setBackground(color)
 
         self.table_widget.resizeColumnsToContents()
 
@@ -101,7 +110,8 @@ class MainDialog(QDialog):
 
         self.filter_combobox.addItem("Missing or conflicting only")
         self.filter_combobox.addItem("Required by plugins")
-        self.filter_combobox.addItem("Show everything")
+        self.filter_combobox.addItem("Show all")
+        self.filter_combobox.addItem("Show all incl. system deps [not recommended]")
         self.filter_combobox.setCurrentIndex(1)
 
         self.filter_combobox.currentIndexChanged.connect(self._filter)
@@ -123,6 +133,10 @@ class MainDialog(QDialog):
             elif self.filter_combobox.currentIndex() == 1:
                 # Skip libraries not required by plugins
                 if not lib.required_by:
+                    self.table_widget.hideRow(i)
+            elif self.filter_combobox.currentIndex() == 2:
+                # Skip libraries installed globally
+                if not lib.qpip:
                     self.table_widget.hideRow(i)
 
     def _ignore_all(self):

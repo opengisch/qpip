@@ -56,6 +56,9 @@
    </item>
    <item>
     <widget class="QTableWidget" name="table_widget">
+     <property name="sizeAdjustPolicy">
+      <enum>QAbstractScrollArea::AdjustToContents</enum>
+     </property>
      <property name="selectionMode">
       <enum>QAbstractItemView::NoSelection</enum>
      </property>
@@ -66,7 +69,7 @@
       <enum>Qt::ElideMiddle</enum>
      </property>
      <property name="wordWrap">
-      <bool>false</bool>
+      <bool>true</bool>
      </property>
      <attribute name="horizontalHeaderVisible">
       <bool>true</bool>
@@ -90,6 +93,11 @@
      </column>
      <column>
       <property name="text">
+       <string>Installed</string>
+      </property>
+     </column>
+     <column>
+      <property name="text">
        <string>Required by</string>
       </property>
      </column>
@@ -101,11 +109,6 @@
      <column>
       <property name="text">
        <string>Missed by</string>
-      </property>
-     </column>
-     <column>
-      <property name="text">
-       <string>Installed</string>
       </property>
      </column>
      <column>
