@@ -3,11 +3,7 @@ import subprocess
 from importlib.metadata import Distribution
 from subprocess import (
     PIPE,
-    STARTF_USESHOWWINDOW,
-    STARTF_USESTDHANDLES,
-    STARTUPINFO,
     STDOUT,
-    SW_HIDE,
     Popen,
 )
 from typing import List, Union
@@ -56,6 +52,12 @@ def run_cmd(args, description="running a system command"):
 
     startupinfo = None
     if os.name == "nt":
+        from subprocess import (
+            STARTF_USESHOWWINDOW,
+            STARTF_USESTDHANDLES,
+            STARTUPINFO,
+            SW_HIDE,
+        )
         startupinfo = STARTUPINFO()
         startupinfo.dwFlags |= STARTF_USESTDHANDLES | STARTF_USESHOWWINDOW
         startupinfo.wShowWindow = SW_HIDE
