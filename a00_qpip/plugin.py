@@ -34,7 +34,7 @@ class Plugin:
             "python",
             "dependencies",
         )
-        self.site_packages_path = os.path.join(self.prefix_path, "Lib", "site-packages")
+        self.site_packages_path = self.prefix_path
         self.bin_path = os.path.join(self.prefix_path, "Scripts")
 
         if self.site_packages_path not in sys.path:
@@ -218,7 +218,7 @@ class Plugin:
 
         run_cmd(
             [
-                "python",
+                sys.executable,
                 "-um",
                 "pip",
                 "uninstall",
@@ -237,12 +237,12 @@ class Plugin:
 
         run_cmd(
             [
-                "python",
+                sys.executable,
                 "-um",
                 "pip",
                 "install",
                 *reqs_to_install,
-                "--prefix",
+                "--target",
                 self.prefix_path,
             ],
             f"installing {len(reqs_to_install)} requirements",
