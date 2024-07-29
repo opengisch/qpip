@@ -218,7 +218,7 @@ class Plugin:
 
         run_cmd(
             [
-                "python",
+                sys.executable,
                 "-um",
                 "pip",
                 "uninstall",
@@ -237,7 +237,7 @@ class Plugin:
 
         run_cmd(
             [
-                "python",
+                sys.executable,
                 "-um",
                 "pip",
                 "install",
