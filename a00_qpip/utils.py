@@ -1,11 +1,7 @@
 import os
 import subprocess
 from importlib.metadata import Distribution
-from subprocess import (
-    PIPE,
-    STDOUT,
-    Popen,
-)
+from subprocess import PIPE, STDOUT, Popen
 from typing import List, Union
 
 from pkg_resources import ResolutionError
@@ -58,6 +54,7 @@ def run_cmd(args, description="running a system command"):
             STARTUPINFO,
             SW_HIDE,
         )
+
         startupinfo = STARTUPINFO()
         startupinfo.dwFlags |= STARTF_USESTDHANDLES | STARTF_USESHOWWINDOW
         startupinfo.wShowWindow = SW_HIDE
