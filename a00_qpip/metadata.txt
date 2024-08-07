@@ -20,7 +20,7 @@ tags=plugin, pip, dependencies, dependency
 homepage=https://github.com/opengisch/qpip
 category=Plugin
 icon=icons/qpip.svg
-experimental=False
+experimental=True
 deprecated=False
 
 # If the plugin can run on QGIS Server.
