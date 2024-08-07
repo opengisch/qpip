@@ -34,19 +34,19 @@ class Plugin:
             "python",
             "dependencies",
         )
-        self.site_packages_path = os.path.join(self.prefix_path, "Lib", "site-packages")
-        self.bin_path = os.path.join(self.prefix_path, "Scripts")
+        self.site_packages_path = os.path.join(self.prefix_path)
+        self.bin_path = os.path.join(self.prefix_path, "bin")
 
         if self.site_packages_path not in sys.path:
             log(f"Adding {self.site_packages_path} to PYTHONPATH")
             sys.path.insert(0, self.site_packages_path)
             os.environ["PYTHONPATH"] = (
-                self.site_packages_path + ";" + os.environ.get("PYTHONPATH", "")
+                self.site_packages_path + os.pathsep + os.environ.get("PYTHONPATH", "")
             )
 
         if self.bin_path not in os.environ["PATH"]:
             log(f"Adding {self.bin_path} to PATH")
-            os.environ["PATH"] = self.bin_path + ";" + os.environ["PATH"]
+            os.environ["PATH"] = self.bin_path + os.pathsep + os.environ["PATH"]
 
         sys.path_importer_cache.clear()
 
@@ -89,9 +89,9 @@ class Plugin:
         if self.site_packages_path in sys.path:
             sys.path.remove(self.site_packages_path)
             os.environ["PYTHONPATH"] = os.environ["PYTHONPATH"].replace(
-                self.bin_path + ";", ""
+                self.bin_path + os.pathsep, ""
             )
-            os.environ["PATH"] = os.environ["PATH"].replace(self.bin_path + ";", "")
+            os.environ["PATH"] = os.environ["PATH"].replace(self.bin_path + os.pathsep, "")
 
     def patched_load_plugin(self, packageName):
         """
@@ -242,7 +242,7 @@ class Plugin:
                 "pip",
                 "install",
                 *reqs_to_install,
-                "--prefix",
+                "--target",
                 self.prefix_path,
             ],
             f"installing {len(reqs_to_install)} requirements",
