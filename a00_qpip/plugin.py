@@ -20,15 +20,20 @@ MissingDep = namedtuple("MissingDep", ["package", "requirement", "state"])
 class Plugin:
     """QGIS Plugin Implementation."""
 
-    def __init__(self, iface):
+    def __init__(self, iface, test_path=None):
         self.iface = iface
         self._defered_packages = []
         self.settings = QgsSettings()
         self.settings.beginGroup("QPIP")
-
-        self.plugins_path = os.path.join(
-            QgsApplication.qgisSettingsDirPath(), "python", "plugins"
-        )
+        
+        if test_path is None:
+            self.plugins_path = os.path.join(
+                QgsApplication.qgisSettingsDirPath(), "python", "plugins"
+            )
+            self.test_mode = False
+        else:
+            self.plugins_path = test_path
+            self.test_mode = True
         self.prefix_path = os.path.join(
             QgsApplication.qgisSettingsDirPath().replace("/", os.path.sep),
             "python",
@@ -170,6 +175,8 @@ class Plugin:
             dialog = MainDialog(
                 libs.values(), self._check_on_startup(), self._check_on_install()
             )
+            if self.test_mode:
+                return dialog.reqs_to_install
             if dialog.exec_():
                 reqs_to_uninstall = dialog.reqs_to_uninstall
                 if reqs_to_uninstall:
