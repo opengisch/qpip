@@ -28,5 +28,5 @@ jobs:
       run: docker pull qgis/qgis:stable
 
     - name: Run tests
-      run: docker run --net=host --volume $(pwd):/app -w=/app qgis/qgis:stable sh -c "python3 -m pip install pytest-qgis xvfb-run -s '+extension GLX -screen 0 1024x768x24' python3 -m pytest tests -s"
+      run: docker run --net=host --volume $(pwd):/app -w=/app qgis/qgis:stable sh -c "python3 -m pip install pytest-qgis && xvfb-run -s '+extension GLX -screen 0 1024x768x24' python3 -m pytest tests -s"
     
