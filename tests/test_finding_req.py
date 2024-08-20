@@ -26,13 +26,15 @@ def plugin(qgis_iface):
 
 def test_plugin_a(plugin: Plugin):
     plugin_a = os.path.join(THIS_DIR, '..', 'test_plugins', 'plugin_a')
-    libs = plugin.check_deps_and_prompt_install([plugin_a])
+    dialog = plugin.check_deps_and_prompt_install([plugin_a])
+    libs = dialog.reqs_to_install
     assert len(libs) == 2
     assert libs[0] == 'cowsay==4.0'
 
 
 def test_plugin_b(plugin: Plugin):
     plugin_b = os.path.join(THIS_DIR, '..', 'test_plugins', 'plugin_b')
-    libs = plugin.check_deps_and_prompt_install([plugin_b])
+    dialog = plugin.check_deps_and_prompt_install([plugin_b])
+    libs = dialog.reqs_to_install
     assert len(libs) == 2
     assert libs[0] == 'cowsay==5.0'

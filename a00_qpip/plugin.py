@@ -176,7 +176,7 @@ class Plugin:
                 libs.values(), self._check_on_startup(), self._check_on_install()
             )
             if self.test_mode:
-                return dialog.reqs_to_install
+                return dialog
             if dialog.exec_():
                 reqs_to_uninstall = dialog.reqs_to_uninstall
                 if reqs_to_uninstall:

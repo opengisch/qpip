@@ -4,15 +4,10 @@
 name: Python application
 
 on:
-  schedule:
-    # runs once a week
-    # - cron: '0 6 * * 0'
-    # runs every day
-    - cron: '0 12 * * *'
   push:
-    branches: [ "main"]
+    branches: ["main"]
   pull_request:
-    branches: [ "master" ]
+    branches: ["main"]
 
 permissions:
   contents: read
@@ -28,5 +23,5 @@ jobs:
       run: docker pull qgis/qgis:stable
 
     - name: Run tests
-      run: docker run --net=host --volume $(pwd):/app -w=/app qgis/qgis:stable sh -c "python3 -m pip install pytest-qgis --break-system-packages && xvfb-run -s '+extension GLX -screen 0 1024x768x24' python3 -m pytest tests -s"
+      run: docker run --volume $(pwd):/app -w=/app qgis/qgis:stable sh -c "python3 -m pip install pytest-qgis --break-system-packages && xvfb-run -s '+extension GLX -screen 0 1024x768x24' python3 -m pytest tests -s"
     
