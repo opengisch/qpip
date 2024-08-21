@@ -1,9 +1,6 @@
 import os
 
 import pytest
-from pytest_qgis import qgis_iface
-
-from PyQt5.QtCore import QSettings, QDate
 
 from a00_qpip.plugin import Plugin
 

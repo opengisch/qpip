@@ -2,7 +2,6 @@ import os
 import platform
 import subprocess
 import sys
-from typing import List
 from collections import defaultdict, namedtuple
 from importlib import metadata
 
