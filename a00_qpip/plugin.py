@@ -132,7 +132,7 @@ class Plugin:
                 self.start_packages([packageName])
                 return True
 
-    def check_deps(self, additional_plugins=[]) -> List[MainDialog, bool]:
+    def check_deps(self, additional_plugins=[]) -> MainDialog | bool:
         """
         This checks dependencies for installed plugins and to-be installed plugins. If
         anything is missing, shows a GUI to install them.
