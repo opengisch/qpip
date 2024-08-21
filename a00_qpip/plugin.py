@@ -2,6 +2,7 @@ import os
 import platform
 import subprocess
 import sys
+from typing import List
 from collections import defaultdict, namedtuple
 from importlib import metadata
 
@@ -75,9 +76,12 @@ class Plugin:
     def initComplete(self):
         if self._defered_packages:
             log(f"Initialization complete. Loading deferred packages")
-            self.check_deps_and_prompt_install(
+            dialog, run_gui = self.check_deps(
                 additional_plugins=self._defered_packages
             )
+            if run_gui:
+                self.promt_install(dialog)
+            self.save_settings(dialog)
             self.start_packages(self._defered_packages)
         self._defered_packages = []
 
@@ -123,11 +127,14 @@ class Plugin:
                 return self._original_loadPlugin(packageName)
             else:
                 log(f"Check on install enabled, we check {packageName}.")
-                self.check_deps_and_prompt_install(additional_plugins=[packageName])
+                dialog, run_gui = self.check_deps(additional_plugins=[packageName])
+                if run_gui:
+                    self.promt_install(dialog)
+                self.save_settings(dialog)
                 self.start_packages([packageName])
                 return True
 
-    def check_deps_and_prompt_install(self, additional_plugins=[], force_gui=False):
+    def check_deps(self, additional_plugins=[]) -> List[MainDialog, bool]:
         """
         This checks dependencies for installed plugins and to-be installed plugins. If
         anything is missing, shows a GUI to install them.
@@ -170,33 +177,34 @@ class Plugin:
                         req = Req(plugin_name, str(requirement), error)
                         libs[requirement.key].name = requirement.key
                         libs[requirement.key].required_by.append(req)
+        dialog = MainDialog(
+            libs.values(), self._check_on_startup(), self._check_on_install()
+        )
+        return dialog, needs_gui
+    
+    def promt_install(self, dialog: MainDialog):
+        """Promts the install dialog and ask the user what to install"""
+        if dialog.exec_():
+            reqs_to_uninstall = dialog.reqs_to_uninstall
+            if reqs_to_uninstall:
+                log(f"Will uninstall selected dependencies : {reqs_to_uninstall}")
+                self.pip_uninstall_reqs(reqs_to_uninstall)
 
-        if force_gui or needs_gui:
-            dialog = MainDialog(
-                libs.values(), self._check_on_startup(), self._check_on_install()
-            )
-            if self.test_mode:
-                return dialog
-            if dialog.exec_():
-                reqs_to_uninstall = dialog.reqs_to_uninstall
-                if reqs_to_uninstall:
-                    log(f"Will uninstall selected dependencies : {reqs_to_uninstall}")
-                    self.pip_uninstall_reqs(reqs_to_uninstall)
+            reqs_to_install = dialog.reqs_to_install
+            if reqs_to_install:
+                log(f"Will install selected dependencies : {reqs_to_install}")
+                self.pip_install_reqs(reqs_to_install)
+        
+    def save_settings(self, dialog):
+        """Stores the settings values"""
+        sys.path_importer_cache.clear()
 
-                reqs_to_install = dialog.reqs_to_install
-                if reqs_to_install:
-                    log(f"Will install selected dependencies : {reqs_to_install}")
-                    self.pip_install_reqs(reqs_to_install)
-
-                sys.path_importer_cache.clear()
-
-            # Save these even if the dialog was closed
-            self.settings.setValue(
-                "check_on_startup", "yes" if dialog.check_on_startup else "no"
-            )
-            self.settings.setValue(
-                "check_on_install", "yes" if dialog.check_on_install else "no"
-            )
+        self.settings.setValue(
+            "check_on_startup", "yes" if dialog.check_on_startup else "no"
+        )
+        self.settings.setValue(
+            "check_on_install", "yes" if dialog.check_on_install else "no"
+        )
 
     def start_packages(self, packageNames):
         """
@@ -256,7 +264,9 @@ class Plugin:
         )
 
     def check(self):
-        self.check_deps_and_prompt_install(force_gui=True)
+        dialog, _ = self.check_deps()
+        self.promt_install(dialog)
+        self.save_settings(dialog)
 
     def show_folder(self):
         if platform.system() == "Windows":
