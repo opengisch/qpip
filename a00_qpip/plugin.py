@@ -21,18 +21,18 @@ MissingDep = namedtuple("MissingDep", ["package", "requirement", "state"])
 class Plugin:
     """QGIS Plugin Implementation."""
 
-    def __init__(self, iface, test_path=None):
+    def __init__(self, iface, plugin_path=None):
         self.iface = iface
         self._defered_packages = []
         self.settings = QgsSettings()
         self.settings.beginGroup("QPIP")
         
-        if test_path is None:
+        if plugin_path is None:
             self.plugins_path = os.path.join(
                 QgsApplication.qgisSettingsDirPath(), "python", "plugins"
             )
         else:
-            self.plugins_path = test_path
+            self.plugins_path = plugin_path
         self.prefix_path = os.path.join(
             QgsApplication.qgisSettingsDirPath().replace("/", os.path.sep),
             "python",
@@ -136,6 +136,10 @@ class Plugin:
         """
         This checks dependencies for installed plugins and to-be installed plugins. If
         anything is missing, shows a GUI to install them.
+
+        The function returns:
+        - MainDialog, the QDialog object (without opening it)
+        - A bool if the dialog needs to be opened or not
         """
 
         plugin_names = [*qgis.utils.active_plugins, *additional_plugins]
