@@ -90,11 +90,7 @@ def run_cmd(args, description="running a system command"):
             f"Encountered an error while {description} !",
             parent=iface.mainWindow(),
         )
-        if "no module named pip" in full_output.lower():
-            msg = """It looks like that the python installation of qgis is missing pip, please install this separately first."""
-            message.setDetailedText(msg)
-        else:
-            message.setDetailedText(full_output)
+        message.setDetailedText(full_output)
         message.exec_()
     else:
         log("Command succeeded.")
