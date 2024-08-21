@@ -26,7 +26,7 @@ class Plugin:
         self._defered_packages = []
         self.settings = QgsSettings()
         self.settings.beginGroup("QPIP")
-        
+
         if plugin_path is None:
             self.plugins_path = os.path.join(
                 QgsApplication.qgisSettingsDirPath(), "python", "plugins"
@@ -74,9 +74,7 @@ class Plugin:
     def initComplete(self):
         if self._defered_packages:
             log(f"Initialization complete. Loading deferred packages")
-            dialog, run_gui = self.check_deps(
-                additional_plugins=self._defered_packages
-            )
+            dialog, run_gui = self.check_deps(additional_plugins=self._defered_packages)
             if run_gui:
                 self.promt_install(dialog)
             self.save_settings(dialog)
@@ -98,7 +96,9 @@ class Plugin:
             os.environ["PYTHONPATH"] = os.environ["PYTHONPATH"].replace(
                 self.bin_path + os.pathsep, ""
             )
-            os.environ["PATH"] = os.environ["PATH"].replace(self.bin_path + os.pathsep, "")
+            os.environ["PATH"] = os.environ["PATH"].replace(
+                self.bin_path + os.pathsep, ""
+            )
 
     def patched_load_plugin(self, packageName):
         """
@@ -183,7 +183,7 @@ class Plugin:
             libs.values(), self._check_on_startup(), self._check_on_install()
         )
         return dialog, needs_gui
-    
+
     def promt_install(self, dialog: MainDialog):
         """Promts the install dialog and ask the user what to install"""
         if dialog.exec_():
@@ -196,7 +196,7 @@ class Plugin:
             if reqs_to_install:
                 log(f"Will install selected dependencies : {reqs_to_install}")
                 self.pip_install_reqs(reqs_to_install)
-        
+
     def save_settings(self, dialog):
         """Stores the settings values"""
         sys.path_importer_cache.clear()
