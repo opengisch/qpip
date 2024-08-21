@@ -31,10 +31,8 @@ class Plugin:
             self.plugins_path = os.path.join(
                 QgsApplication.qgisSettingsDirPath(), "python", "plugins"
             )
-            self.test_mode = False
         else:
             self.plugins_path = test_path
-            self.test_mode = True
         self.prefix_path = os.path.join(
             QgsApplication.qgisSettingsDirPath().replace("/", os.path.sep),
             "python",
