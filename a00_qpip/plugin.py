@@ -59,6 +59,10 @@ class Plugin:
         qgis.utils.loadPlugin = self.patched_load_plugin
 
         self.iface.initializationCompleted.connect(self.initComplete)
+        dialog, run_gui = self.check_deps(additional_plugins=[])
+        if run_gui:
+            self.promt_install(dialog)
+        self.save_settings(dialog)   
 
     def initGui(self):
         self.check_action = QAction(icon("qpip.svg"), "Run dependencies check now")
