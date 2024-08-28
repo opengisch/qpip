@@ -62,7 +62,7 @@ class Plugin:
         dialog, run_gui = self.check_deps(additional_plugins=[])
         if run_gui:
             self.promt_install(dialog)
-        self.save_settings(dialog)   
+        self.save_settings(dialog)
 
     def initGui(self):
         self.check_action = QAction(icon("qpip.svg"), "Run dependencies check now")
