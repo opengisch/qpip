@@ -251,9 +251,13 @@ class Plugin:
         os.makedirs(self.prefix_path, exist_ok=True)
         log(f"Will pip install {reqs_to_install}")
 
+        # python is normally found at sys.executable, but there is a bug on windows qgis so use 'python' instead
+        # https://github.com/qgis/QGIS/issues/45646
+        python_command = 'python' if os.name == 'nt' else sys.executable
+
         run_cmd(
             [
-                sys.executable,
+                python_command,
                 "-um",
                 "pip",
                 "install",
