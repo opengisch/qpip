@@ -234,7 +234,7 @@ class Plugin:
 
         run_cmd(
             [
-                sys.executable,
+                self.python_command(),
                 "-um",
                 "pip",
                 "uninstall",
@@ -251,13 +251,9 @@ class Plugin:
         os.makedirs(self.prefix_path, exist_ok=True)
         log(f"Will pip install {reqs_to_install}")
 
-        # python is normally found at sys.executable, but there is a bug on windows qgis so use 'python' instead
-        # https://github.com/qgis/QGIS/issues/45646
-        python_command = 'python' if os.name == 'nt' else sys.executable
-
         run_cmd(
             [
-                python_command,
+                self.python_command(),
                 "-um",
                 "pip",
                 "install",
@@ -267,6 +263,11 @@ class Plugin:
             ],
             f"installing {len(reqs_to_install)} requirements",
         )
+
+    def python_command(self):
+        # python is normally found at sys.executable, but there is an issue on windows qgis so use 'python' instead
+        # https://github.com/qgis/QGIS/issues/45646
+        return "python" if os.name == "nt" else sys.executable
 
     def check(self):
         dialog, _ = self.check_deps()
