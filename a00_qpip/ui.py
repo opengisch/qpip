@@ -82,8 +82,11 @@ class MainDialog(QDialog):
             self.action_combos[lib] = action_combo
 
             # row color (gray out system deps)
-            row_color = QgsApplication.palette().base().color() if lib.qpip \
+            row_color = (
+                QgsApplication.palette().base().color()
+                if lib.qpip
                 else QColor("#aaaaaa")
+            )
             for j in range(0, 5):
                 self.table_widget.item(i, j).setBackground(row_color)
 
