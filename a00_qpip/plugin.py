@@ -153,7 +153,7 @@ class Plugin:
             name = dist.metadata["Name"]
             libs[name].name = name
             libs[name].installed_dist = dist
-            if os.path.dirname(dist._path) != self.site_packages_path:
+            if os.path.dirname(str(dist._path)) != self.site_packages_path:
                 libs[name].qpip = False
 
         # Checking requirements of all plugins
