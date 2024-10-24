@@ -4,6 +4,7 @@ import subprocess
 import sys
 from collections import defaultdict, namedtuple
 from importlib import metadata
+from typing import Union
 
 import pkg_resources
 import qgis
@@ -131,7 +132,7 @@ class Plugin:
                 self.start_packages([packageName])
                 return True
 
-    def check_deps(self, additional_plugins=[]) -> MainDialog | bool:
+    def check_deps(self, additional_plugins=[]) -> Union[MainDialog, bool]:
         """
         This checks dependencies for installed plugins and to-be installed plugins. If
         anything is missing, shows a GUI to install them.
