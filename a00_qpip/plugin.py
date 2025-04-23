@@ -285,11 +285,11 @@ class Plugin:
                 subprocess.Popen(["xdg-open", self.prefix_path])
         else:
             self.iface.messageBar().pushMessage(
-            "QPIP", 
-            f"The folder {self.prefix_path} has not yet been created. It will be created when dependencies are installed.",
-            level=Qgis.Info, 
-            duration=5
-        )
+                "QPIP", 
+                f"The folder {self.prefix_path} has not yet been created. It will be created when dependencies are installed.",
+                level=Qgis.Info, 
+                duration=5
+            )
 
     def _check_on_startup(self):
         return self.settings.value("check_on_startup", "no") == "yes"
