@@ -1,3 +1,4 @@
+import glob
 import os
 import platform
 import subprocess
@@ -266,9 +267,41 @@ class Plugin:
         )
 
     def python_command(self):
-        # python is normally found at sys.executable, but there is an issue on windows qgis so use 'python' instead
-        # https://github.com/qgis/QGIS/issues/45646
-        return "python" if os.name == "nt" else sys.executable
+        if os.path.exists(os.path.join(sys.prefix, "conda-meta")):  # Conda
+            log("Attempt Conda install at 'python' shortcut")
+            return "python"
+
+        # python is normally found at sys.executable, but there is an issue on windows qgis so use 'python' instead: https://github.com/qgis/QGIS/issues/45646
+        # 'python' doesnt seem to work, using this method instead
+        if platform.system() == "Windows":  # Windows
+            search_path = sys.prefix
+            matches = glob.glob(os.path.join(search_path, "python*.exe"))
+            for name in ("python.exe", "python3.exe"):
+                for match in matches:
+                    if os.path.basename(match) == name:
+                        log(f"Attempt Windows install at {str(match)}")
+                        return match
+            path = sys.executable
+            log(f"Attempt Windows install at {str(path)}")
+            return path
+
+        # Same bug on mac as windows: https://github.com/opengisch/qpip/issues/34#issuecomment-2995221985
+        if platform.system() == "Darwin":  # Mac
+            search_path = sys.prefix
+            matches = glob.glob(os.path.join(search_path, "bin", "python*"))
+            for name in ("python", "python3"):
+                for match in matches:
+                    if os.path.basename(match) == name:
+                        log(f"Attempt MacOS install at {str(match)}")
+                        return match
+            path = sys.executable
+            log(f"Attempt MacOS install at {str(path)}")
+            return path
+
+        else:  # Fallback attempt
+            path = sys.executable
+            log(f"Attempt fallback install at {str(path)}")
+            return path
 
     def check(self):
         dialog, _ = self.check_deps()
