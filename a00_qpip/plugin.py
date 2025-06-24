@@ -1,4 +1,3 @@
-import glob
 import os
 import platform
 import subprocess
@@ -274,26 +273,24 @@ class Plugin:
         # python is normally found at sys.executable, but there is an issue on windows qgis so use 'python' instead: https://github.com/qgis/QGIS/issues/45646
         # 'python' doesnt seem to work, using this method instead
         if platform.system() == "Windows":  # Windows
-            search_path = sys.prefix
-            matches = glob.glob(os.path.join(search_path, "python*.exe"))
-            for name in ("python.exe", "python3.exe"):
-                for match in matches:
-                    if os.path.basename(match) == name:
-                        log(f"Attempt Windows install at {str(match)}")
-                        return match
+            base_path = sys.prefix
+            for file in ["python.exe", "python3.exe"]:
+                path = os.path.join(base_path, file)
+                if os.path.isfile(path):
+                    log(f"Attempt Windows install at {str(path)}")
+                    return path
             path = sys.executable
             log(f"Attempt Windows install at {str(path)}")
             return path
 
         # Same bug on mac as windows: https://github.com/opengisch/qpip/issues/34#issuecomment-2995221985
         if platform.system() == "Darwin":  # Mac
-            search_path = sys.prefix
-            matches = glob.glob(os.path.join(search_path, "bin", "python*"))
-            for name in ("python", "python3"):
-                for match in matches:
-                    if os.path.basename(match) == name:
-                        log(f"Attempt MacOS install at {str(match)}")
-                        return match
+            base_path = os.path.join(sys.prefix, "bin")
+            for file in ["python", "python3"]:
+                path = os.path.join(base_path, file)
+                if os.path.isfile(path):
+                    log(f"Attempt MacOS install at {str(path)}")
+                    return path
             path = sys.executable
             log(f"Attempt MacOS install at {str(path)}")
             return path
