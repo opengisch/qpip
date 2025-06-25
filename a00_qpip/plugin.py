@@ -186,7 +186,7 @@ class Plugin:
 
     def promt_install(self, dialog: MainDialog):
         """Promts the install dialog and ask the user what to install"""
-        if dialog.exec_():
+        if dialog.exec(): # Qt6 compatibility
             reqs_to_uninstall = dialog.reqs_to_uninstall
             if reqs_to_uninstall:
                 log(f"Will uninstall selected dependencies : {reqs_to_uninstall}")
