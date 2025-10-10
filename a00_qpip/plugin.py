@@ -9,6 +9,7 @@ from typing import Union
 import pkg_resources
 import qgis
 from pkg_resources import DistributionNotFound, VersionConflict
+from pyplugin_installer import installer
 from qgis.core import QgsApplication, QgsSettings
 from qgis.PyQt.QtWidgets import QAction
 
@@ -54,10 +55,11 @@ class Plugin:
 
         sys.path_importer_cache.clear()
 
-        # Monkey patch qgis.utils
-        log("Applying monkey patch to qgis.utils")
+        # Monkey patch qgis.utils and installer
+        log("Applying monkey patch to qgis.utils and installer")
         self._original_loadPlugin = qgis.utils.loadPlugin
         qgis.utils.loadPlugin = self.patched_load_plugin
+        installer.loadPlugin = self.patched_load_plugin
 
         self.iface.initializationCompleted.connect(self.initComplete)
 
@@ -87,8 +89,9 @@ class Plugin:
         self.iface.removePluginMenu("QPIP", self.show_folder_action)
 
         # Remove monkey patch
-        log("Unapplying monkey patch to qgis.utils")
+        log("Unapplying monkey patch to qgis.utils and installer")
         qgis.utils.loadPlugin = self._original_loadPlugin
+        installer.loadPlugin = self._original_loadPlugin
 
         # Remove path alterations
         if self.site_packages_path in sys.path:
