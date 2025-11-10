@@ -9,8 +9,9 @@ from typing import Union
 import pkg_resources
 import qgis
 from pkg_resources import DistributionNotFound, VersionConflict
+from pyplugin_installer import installer
 from qgis.core import QgsApplication, QgsSettings
-from qgis.PyQt.QtWidgets import QAction
+from qgis.PyQt.QtWidgets import QAction, QApplication
 
 from .ui import MainDialog
 from .utils import Lib, Req, icon, log, run_cmd
@@ -54,10 +55,11 @@ class Plugin:
 
         sys.path_importer_cache.clear()
 
-        # Monkey patch qgis.utils
-        log("Applying monkey patch to qgis.utils")
+        # Monkey patch qgis.utils and installer
+        log("Applying monkey patch to qgis.utils and installer")
         self._original_loadPlugin = qgis.utils.loadPlugin
         qgis.utils.loadPlugin = self.patched_load_plugin
+        installer.loadPlugin = self.patched_load_plugin
 
         self.iface.initializationCompleted.connect(self.initComplete)
 
@@ -87,8 +89,9 @@ class Plugin:
         self.iface.removePluginMenu("QPIP", self.show_folder_action)
 
         # Remove monkey patch
-        log("Unapplying monkey patch to qgis.utils")
+        log("Unapplying monkey patch to qgis.utils and installer")
         qgis.utils.loadPlugin = self._original_loadPlugin
+        installer.loadPlugin = self._original_loadPlugin
 
         # Remove path alterations
         if self.site_packages_path in sys.path:
@@ -104,25 +107,34 @@ class Plugin:
         """
         This replaces qgis.utils.loadPlugin
         """
+        res = False
+
+        # Get override cursor if any, to restore it later
+        cursor_shape = None
+        cursor = QApplication.overrideCursor()
+        if cursor:
+            cursor_shape = cursor.shape()
+            QApplication.restoreOverrideCursor()
+
         if not self._is_qgis_loaded():
             # During QGIS startup
             log(f"Loading {packageName} (GUI is no yet ready).")
             if not self._check_on_startup():
                 # With initial loading disabled, we simply load the plugin
                 log(f"Check on startup disabled. Normal loading of {packageName}.")
-                return self._original_loadPlugin(packageName)
+                res = self._original_loadPlugin(packageName)
             else:
                 # With initial loading enabled, we defer loading
                 log(f"Check on startup enabled, we defer loading of {packageName}.")
                 self._defered_packages.append(packageName)
-                return False
+                res = False
         else:
             # QGIS ready, a plugin probably was just enabled in the manager
             log(f"Loading {packageName} (GUI is ready).")
             if not self._check_on_install():
                 # With loading on install disabled, we simply load the plugin
                 log(f"Check on install disabled. Normal loading of {packageName}.")
-                return self._original_loadPlugin(packageName)
+                res = self._original_loadPlugin(packageName)
             else:
                 log(f"Check on install enabled, we check {packageName}.")
                 dialog, run_gui = self.check_deps(additional_plugins=[packageName])
@@ -130,7 +142,13 @@ class Plugin:
                     self.promt_install(dialog)
                 self.save_settings(dialog)
                 self.start_packages([packageName])
-                return True
+                res = True
+
+        # Restore original cursor
+        if cursor_shape:
+            QApplication.setOverrideCursor(cursor_shape)
+
+        return res
 
     def check_deps(self, additional_plugins=[]) -> Union[MainDialog, bool]:
         """
