@@ -78,7 +78,7 @@ class Plugin:
             log(f"Initialization complete. Loading deferred packages")
             dialog, run_gui = self.check_deps(additional_plugins=self._defered_packages)
             if run_gui:
-                self.promt_install(dialog)
+                self.prompt_install(dialog)
             self.save_settings(dialog)
             self.start_packages(self._defered_packages)
         self._defered_packages = []
@@ -139,7 +139,7 @@ class Plugin:
                 log(f"Check on install enabled, we check {packageName}.")
                 dialog, run_gui = self.check_deps(additional_plugins=[packageName])
                 if run_gui:
-                    self.promt_install(dialog)
+                    self.prompt_install(dialog)
                 self.save_settings(dialog)
                 self.start_packages([packageName])
                 res = True
@@ -202,7 +202,7 @@ class Plugin:
         )
         return dialog, needs_gui
 
-    def promt_install(self, dialog: MainDialog):
+    def prompt_install(self, dialog: MainDialog):
         """Prompts the installation dialog and ask the user what to install"""
         if dialog.exec():
             reqs_to_uninstall = dialog.reqs_to_uninstall
@@ -320,7 +320,7 @@ class Plugin:
 
     def check(self):
         dialog, _ = self.check_deps()
-        self.promt_install(dialog)
+        self.prompt_install(dialog)
         self.save_settings(dialog)
 
     def show_folder(self):
