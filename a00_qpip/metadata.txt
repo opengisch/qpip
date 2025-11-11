@@ -3,6 +3,8 @@ name=qpip
 qgisMinimumVersion=3.18
 description=PIP dependencies manager for QGIS plugins
 version=dev
+supportsQt6=True
+qgisMaximumVersion=4.99
 author=OPENGIS.ch
 email=info@opengis.ch
 

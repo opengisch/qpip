@@ -43,7 +43,7 @@ def run_cmd(args, description="running a system command"):
     progress_dlg = QProgressDialog(
         description, "Abort", 0, 0, parent=iface.mainWindow()
     )
-    progress_dlg.setWindowModality(Qt.WindowModal)
+    progress_dlg.setWindowModality(Qt.WindowModality.WindowModal)
     progress_dlg.show()
 
     startupinfo = None
