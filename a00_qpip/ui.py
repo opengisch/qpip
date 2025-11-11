@@ -2,8 +2,8 @@ import os
 from typing import Dict, List
 
 from pkg_resources import DistributionNotFound, VersionConflict
-from PyQt5 import uic
 from qgis.core import QgsApplication
+from qgis.PyQt import uic
 from qgis.PyQt.QtCore import Qt
 from qgis.PyQt.QtGui import QColor
 from qgis.PyQt.QtWidgets import QComboBox, QDialog, QTableWidgetItem
@@ -30,7 +30,7 @@ class MainDialog(QDialog):
             def make_widget(label, tooltip=None):
                 item = QTableWidgetItem(label)
                 item.setToolTip(tooltip)
-                item.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
+                item.setFlags(Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsEnabled)
                 return item
 
             def make_error_widget(error_type):

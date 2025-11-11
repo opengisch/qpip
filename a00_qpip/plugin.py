@@ -203,8 +203,8 @@ class Plugin:
         return dialog, needs_gui
 
     def promt_install(self, dialog: MainDialog):
-        """Promts the install dialog and ask the user what to install"""
-        if dialog.exec_():
+        """Prompts the installation dialog and ask the user what to install"""
+        if dialog.exec():
             reqs_to_uninstall = dialog.reqs_to_uninstall
             if reqs_to_uninstall:
                 log(f"Will uninstall selected dependencies : {reqs_to_uninstall}")
