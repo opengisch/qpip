@@ -2,14 +2,14 @@
 
 **QPIP** is a QGIS plugin allowing to manage Python dependencies for other plugins.
 
-When loading other plugins, it will check if a `requirements.txt` file exists in its directory. If so, it will verify if the dependencies are met, and display a dialog offering to install missing requirements.
+When installing or loading other plugins, it will check if a `requirements.txt` file exists in its directory. If so, it will verify if the dependencies are met, and display a dialog offering to install missing requirements.
 
 All requirements are installed in the user's profile (under `python/dependencies`), so that each user profile can have a different set of dependencies.
 
 
 ## Usage (end user)
 
-Install `QPIP` through the QGIS plugin manager. Once installed, by default, dependencies will be checked automatically when activating new plugins.
+Install `QPIP` through the QGIS plugin manager. Once installed, by default, dependencies will be checked automatically when installing or activating new plugins.
 
 ### Plugin menu
 
@@ -29,7 +29,7 @@ The main dialog shows a list of Python libraries with the following columns:
 - **Installed** the version currently available on your system (system-wide python libraries are marked with `[global]`)
 - **Action** the action that will be taken once you click on "OK".
 
-You can filter the list to either show only missing/conflicting dependencies, or to include system wide python libraries even if not directly required by a QGIS plugin. Note that you should not uninstall/upgrade system wide python libraries unless you know what you are doing (it may require administrator privileges).
+You can filter the list to either show only missing/conflicting dependencies, or to include system-wide python libraries even if not directly required by a QGIS plugin. Note that you should not uninstall/upgrade system-wide python libraries unless you know what you are doing (it may require administrator privileges).
 
 You can also configure when QPIP should automatically check for dependencies.
 
@@ -70,7 +70,7 @@ pip install pre-commit
 pre-commit install
 ```
 
-Deployements to QGIS plugin repository are made automatically by Github workflows when tags matching `v*` are pushed.
+Deployments to QGIS plugin repository are made automatically by GitHub workflows when tags matching `v*` are pushed.
 
 
 ## Roadmap
