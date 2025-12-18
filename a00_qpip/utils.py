@@ -85,13 +85,13 @@ def run_cmd(args, description="running a system command"):
     if process.returncode != 0:
         warn(f"Command failed.")
         message = QMessageBox(
-            QMessageBox.Warning,
+            QMessageBox.Icon.Warning,
             "Command failed",
             f"Encountered an error while {description} !",
             parent=iface.mainWindow(),
         )
         message.setDetailedText(full_output)
-        message.exec_()
+        message.exec()
     else:
         log("Command succeeded.")
         iface.messageBar().pushMessage(
