@@ -303,12 +303,13 @@ class Plugin:
 
         # Same bug on mac as windows: https://github.com/opengisch/qpip/issues/34#issuecomment-2995221985
         if platform.system() == "Darwin":  # Mac
-            base_path = os.path.join(sys.prefix, "bin")
-            for file in ["python", "python3"]:
-                path = os.path.join(base_path, file)
-                if os.path.isfile(path):
-                    log(f"Attempt MacOS install at {str(path)}")
-                    return path
+            base_paths = [sys.prefix, os.path.join(sys.prefix, "bin")]
+            for base_path in base_paths:
+                for file in ["python", "python3"]:
+                    path = os.path.join(base_path, file)
+                    if os.path.isfile(path):
+                        log(f"Attempt MacOS install at {str(path)}")
+                        return path
             path = sys.executable
             log(f"Attempt MacOS install at {str(path)}")
             return path
