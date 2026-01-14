@@ -325,12 +325,20 @@ class Plugin:
         self.save_settings(dialog)
 
     def show_folder(self):
-        if platform.system() == "Windows":
-            os.startfile(self.prefix_path)
-        elif platform.system() == "Darwin":
-            subprocess.Popen(["open", self.prefix_path])
+        if os.path.isdir(self.prefix_path):
+            if platform.system() == "Windows":
+                os.startfile(self.prefix_path)
+            elif platform.system() == "Darwin":
+                subprocess.Popen(["open", self.prefix_path])
+            else:
+                subprocess.Popen(["xdg-open", self.prefix_path])
         else:
-            subprocess.Popen(["xdg-open", self.prefix_path])
+            self.iface.messageBar().pushMessage(
+                "QPIP", 
+                f"The folder {self.prefix_path} has not yet been created. It will be created when dependencies are installed.",
+                level=Qgis.Info, 
+                duration=5
+            )
 
     def _check_on_startup(self):
         return self.settings.value("check_on_startup", "no") == "yes"
