@@ -4,6 +4,7 @@ import subprocess
 import sys
 from collections import defaultdict, namedtuple
 from importlib import metadata
+from pathlib import Path
 from typing import Union
 
 import pkg_resources
@@ -29,29 +30,29 @@ class Plugin:
         self.settings.beginGroup("QPIP")
 
         if plugin_path is None:
-            self.plugins_path = os.path.join(
-                QgsApplication.qgisSettingsDirPath(), "python", "plugins"
+            self.plugins_path = (
+                Path(QgsApplication.qgisSettingsDirPath()) / "python" / "plugins"
             )
         else:
-            self.plugins_path = plugin_path
-        self.prefix_path = os.path.join(
-            QgsApplication.qgisSettingsDirPath().replace("/", os.path.sep),
-            "python",
-            "dependencies",
+            self.plugins_path = Path(plugin_path)
+        self.prefix_path = (
+            Path(QgsApplication.qgisSettingsDirPath()) / "python" / "dependencies"
         )
-        self.site_packages_path = os.path.join(self.prefix_path)
-        self.bin_path = os.path.join(self.prefix_path, "bin")
+        self.site_packages_path = self.prefix_path
+        self.bin_path = self.prefix_path / "bin"
 
         if self.site_packages_path not in sys.path:
             log(f"Adding {self.site_packages_path} to PYTHONPATH")
-            sys.path.insert(0, self.site_packages_path)
+            sys.path.insert(0, str(self.site_packages_path))
             os.environ["PYTHONPATH"] = (
-                self.site_packages_path + os.pathsep + os.environ.get("PYTHONPATH", "")
+                str(self.site_packages_path)
+                + os.pathsep
+                + os.environ.get("PYTHONPATH", "")
             )
 
-        if self.bin_path not in os.environ["PATH"]:
+        if str(self.bin_path) not in os.environ["PATH"]:
             log(f"Adding {self.bin_path} to PATH")
-            os.environ["PATH"] = self.bin_path + os.pathsep + os.environ["PATH"]
+            os.environ["PATH"] = str(self.bin_path) + os.pathsep + os.environ["PATH"]
 
         sys.path_importer_cache.clear()
 
@@ -94,13 +95,13 @@ class Plugin:
         installer.loadPlugin = self._original_loadPlugin
 
         # Remove path alterations
-        if self.site_packages_path in sys.path:
-            sys.path.remove(self.site_packages_path)
+        if str(self.site_packages_path) in sys.path:
+            sys.path.remove(str(self.site_packages_path))
             os.environ["PYTHONPATH"] = os.environ["PYTHONPATH"].replace(
-                self.bin_path + os.pathsep, ""
+                str(self.site_packages_path) + os.pathsep, ""
             )
             os.environ["PATH"] = os.environ["PATH"].replace(
-                self.bin_path + os.pathsep, ""
+                str(self.bin_path) + os.pathsep, ""
             )
 
     def patched_load_plugin(self, packageName):
@@ -172,17 +173,15 @@ class Plugin:
             name = dist.metadata["Name"]
             libs[name].name = name
             libs[name].installed_dist = dist
-            if os.path.dirname(str(dist._path)) != self.site_packages_path:
+            if Path(dist._path).parent != self.site_packages_path:
                 libs[name].qpip = False
 
         # Checking requirements of all plugins
         needs_gui = False
         for plugin_name in plugin_names:
             # If requirements.txt is present, we see if we can load it
-            requirements_path = os.path.join(
-                self.plugins_path, plugin_name, "requirements.txt"
-            )
-            if os.path.isfile(requirements_path):
+            requirements_path = self.plugins_path / plugin_name / "requirements.txt"
+            if requirements_path.is_file():
                 log(f"Loading requirements for {plugin_name}")
                 with open(requirements_path, "r") as f:
                     requirements = pkg_resources.parse_requirements(f)
@@ -267,7 +266,7 @@ class Plugin:
         """
         Installs given reqs with pip
         """
-        os.makedirs(self.prefix_path, exist_ok=True)
+        self.prefix_path.mkdir(parents=True, exist_ok=True)
         log(f"Will pip install {reqs_to_install}")
 
         run_cmd(
@@ -278,38 +277,42 @@ class Plugin:
                 "install",
                 *reqs_to_install,
                 "--target",
-                self.prefix_path,
+                str(self.prefix_path),
             ],
             f"installing {len(reqs_to_install)} requirements",
         )
 
     def python_command(self):
-        if os.path.exists(os.path.join(sys.prefix, "conda-meta")):  # Conda
+        if (Path(sys.prefix) / "conda-meta").exists():  # Conda
             log("Attempt Conda install at 'python' shortcut")
             return "python"
 
         # python is normally found at sys.executable, but there is an issue on windows qgis so use 'python' instead: https://github.com/qgis/QGIS/issues/45646
         # 'python' doesnt seem to work, using this method instead
         if platform.system() == "Windows":  # Windows
-            base_path = sys.prefix
+            base_path = Path(sys.prefix)
             for file in ["python.exe", "python3.exe"]:
-                path = os.path.join(base_path, file)
-                if os.path.isfile(path):
+                path = base_path / file
+                if path.is_file():
                     log(f"Attempt Windows install at {str(path)}")
-                    return path
+                    return str(path)
             path = sys.executable
             log(f"Attempt Windows install at {str(path)}")
             return path
 
         # Same bug on mac as windows: https://github.com/opengisch/qpip/issues/34#issuecomment-2995221985
         if platform.system() == "Darwin":  # Mac
-            base_paths = [sys.prefix, os.path.join(sys.prefix, "bin")]
+            base_paths = [
+                Path(sys.prefix),
+                Path(sys.prefix) / "bin",
+                Path(sys.executable).parent,
+            ]
             for base_path in base_paths:
                 for file in ["python", "python3"]:
-                    path = os.path.join(base_path, file)
-                    if os.path.isfile(path):
+                    path = base_path / file
+                    if path.is_file():
                         log(f"Attempt MacOS install at {str(path)}")
-                        return path
+                        return str(path)
             path = sys.executable
             log(f"Attempt MacOS install at {str(path)}")
             return path
@@ -326,11 +329,11 @@ class Plugin:
 
     def show_folder(self):
         if platform.system() == "Windows":
-            os.startfile(self.prefix_path)
+            os.startfile(str(self.prefix_path))
         elif platform.system() == "Darwin":
-            subprocess.Popen(["open", self.prefix_path])
+            subprocess.Popen(["open", str(self.prefix_path)])
         else:
-            subprocess.Popen(["xdg-open", self.prefix_path])
+            subprocess.Popen(["xdg-open", str(self.prefix_path)])
 
     def _check_on_startup(self):
         return self.settings.value("check_on_startup", "no") == "yes"
