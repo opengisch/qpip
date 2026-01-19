@@ -98,7 +98,7 @@ class Plugin:
         if str(self.site_packages_path) in sys.path:
             sys.path.remove(str(self.site_packages_path))
             os.environ["PYTHONPATH"] = os.environ["PYTHONPATH"].replace(
-                str(self.bin_path) + os.pathsep, ""
+                str(self.site_packages_path) + os.pathsep, ""
             )
             os.environ["PATH"] = os.environ["PATH"].replace(
                 str(self.bin_path) + os.pathsep, ""
