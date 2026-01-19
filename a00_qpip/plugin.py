@@ -180,9 +180,7 @@ class Plugin:
         needs_gui = False
         for plugin_name in plugin_names:
             # If requirements.txt is present, we see if we can load it
-            requirements_path = (
-                Path(self.plugins_path) / plugin_name / "requirements.txt"
-            )
+            requirements_path = self.plugins_path / plugin_name / "requirements.txt"
             if requirements_path.is_file():
                 log(f"Loading requirements for {plugin_name}")
                 with open(requirements_path, "r") as f:
