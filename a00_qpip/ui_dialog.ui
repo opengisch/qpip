@@ -68,6 +68,9 @@
      <property name="textElideMode">
       <enum>Qt::ElideMiddle</enum>
      </property>
+     <property name="sortingEnabled">
+      <bool>true</bool>
+     </property>
      <property name="wordWrap">
       <bool>true</bool>
      </property>
