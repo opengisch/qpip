@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Union
 
 import pkg_resources
+import pyplugin_installer
 import qgis
 from pkg_resources import DistributionNotFound, VersionConflict
 from pyplugin_installer import installer
@@ -29,12 +30,6 @@ class Plugin:
         self.settings = QgsSettings()
         self.settings.beginGroup("QPIP")
 
-        if plugin_path is None:
-            self.plugins_path = (
-                Path(QgsApplication.qgisSettingsDirPath()) / "python" / "plugins"
-            )
-        else:
-            self.plugins_path = Path(plugin_path)
         self.prefix_path = (
             Path(QgsApplication.qgisSettingsDirPath()) / "python" / "dependencies"
         )
@@ -177,10 +172,32 @@ class Plugin:
                 libs[name].qpip = False
 
         # Checking requirements of all plugins
+        
+        # fetch plugin information first
+        import pyplugin_installer
+        pyplugin_installer.instance().fetchAvailablePlugins(False)
+        all_plugin_metadata = pyplugin_installer.installer_data.plugins.all()
+        
+        # get the qgis path to ignore core plugins
+        qgis_path = Path(QgsApplication.prefixPath()).resolve()
+
         needs_gui = False
         for plugin_name in plugin_names:
+            # Get metadata for a specific plugin by its ID (folder name) as a dictionary
+            plugin_metadata = all_plugin_metadata.get(plugin_name)
+            if not plugin_metadata:
+                log(f"Could not find metadata for plugin {plugin_name}, skipping.")
+                continue
+
+            # get the plugins installation folder
+            plug_path = Path(plugin_metadata.get('library')).resolve()
+            
+            # check it against the Qgis path to see if its core
+            if plug_path.is_relative_to(qgis_path) :
+                continue
+
             # If requirements.txt is present, we see if we can load it
-            requirements_path = self.plugins_path / plugin_name / "requirements.txt"
+            requirements_path = plug_path.joinpath('requirements.txt')
             if requirements_path.is_file():
                 log(f"Loading requirements for {plugin_name}")
                 with open(requirements_path, "r") as f:
