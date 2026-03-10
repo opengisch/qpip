@@ -4,7 +4,6 @@ from importlib.metadata import Distribution
 from subprocess import PIPE, STDOUT, Popen
 from typing import List, Union
 
-from pkg_resources import ResolutionError
 from qgis.core import Qgis, QgsApplication, QgsMessageLog
 from qgis.PyQt.QtCore import Qt
 from qgis.PyQt.QtGui import QIcon
@@ -20,11 +19,19 @@ def warn(message):
     QgsMessageLog.logMessage(message, "QPIP", level=Qgis.MessageLevel.Warning)
 
 
+class VersionConflict(Exception):
+    pass
+
+
+class DistributionNotFound(Exception):
+    pass
+
+
 class Req:
     def __init__(self, plugin, requirement, error):
         self.plugin: str = plugin
         self.requirement: str = requirement
-        self.error: Union[None, ResolutionError] = error
+        self.error: Union[None, Exception] = error
 
 
 class Lib:

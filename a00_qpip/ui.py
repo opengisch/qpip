@@ -1,14 +1,13 @@
 import os
 from typing import Dict, List
 
-from pkg_resources import DistributionNotFound, VersionConflict
 from qgis.core import QgsApplication
 from qgis.PyQt import uic
 from qgis.PyQt.QtCore import Qt
 from qgis.PyQt.QtGui import QColor
 from qgis.PyQt.QtWidgets import QComboBox, QDialog, QTableWidgetItem
 
-from .utils import Lib, icon
+from .utils import DistributionNotFound, Lib, VersionConflict, icon
 
 
 class MainDialog(QDialog):
