@@ -1,0 +1,7 @@
+[project]
+name = "qpip_test_plugin_c"
+version = "0.1.0"
+dependencies = [
+    "cowsay==4.0",
+    "fortune-python>1.0.1",
+]

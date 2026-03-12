@@ -41,3 +41,13 @@ def test_plugin_b(plugin: Plugin):
     assert len(libs) == 2
     assert libs[0] == "cowsay==5.0"
     assert needs_gui
+
+
+def test_plugin_c_pyproject_toml(plugin: Plugin):
+    """Test that dependencies are read from pyproject.toml"""
+    plugin_c = os.path.join(THIS_DIR, "..", "test_plugins", "plugin_c")
+    dialog, needs_gui = plugin.check_deps([plugin_c])
+    libs = dialog.reqs_to_install
+    assert len(libs) == 2
+    assert libs[0] == "cowsay==4.0"
+    assert needs_gui

@@ -2,7 +2,7 @@
 
 **QPIP** is a QGIS plugin allowing to manage Python dependencies for other plugins.
 
-When installing or loading other plugins, it will check if a `requirements.txt` file exists in its directory. If so, it will verify if the dependencies are met, and display a dialog offering to install missing requirements.
+When installing or loading other plugins, it will check if a `requirements.txt` or `pyproject.toml` file exists in its directory. If so, it will verify if the dependencies are met, and display a dialog offering to install missing requirements.
 
 All requirements are installed in the user's profile (under `python/dependencies`), so that each user profile can have a different set of dependencies.
 
@@ -38,7 +38,9 @@ You can also configure when QPIP should automatically check for dependencies.
 
 Add `plugin_dependencies=qpip` to your plugin's `metadata.txt` to ensure your user will have QPIP installed upon installation of your plugin.
 
-Add a `requirements.txt` file in your plugin directory (see [an example](https://pip.pypa.io/en/stable/cli/pip_install/#example-requirements-file)).
+Add a `requirements.txt` file in your plugin directory (see [an example](https://pip.pypa.io/en/stable/cli/pip_install/#example-requirements-file)). Alternatively, you can declare dependencies in a `pyproject.toml` file under `[project.dependencies]` (see [PEP 621](https://peps.python.org/pep-0621/)). If both files exist, `requirements.txt` takes precedence.
+
+**Note**: `pyproject.toml` parsing requires Python 3.11+ (which includes `tomllib` in the standard library) or the `tomli` package on older Python versions.
 
 **Important** : make sure to keep your requirements as loose as possible, as to minimise the risk of requirements conflicts with other plugins. Also, avoid requiring libraries that may conflict with core QGIS dependencies such as GDAL, as it could lead to instabilities.
 
@@ -53,7 +55,7 @@ QPIP handles each plugin independently. If two plugins have incomptabile require
 - QPIP is installed under the `a00_qpip` directory and it will load before any dependent plugin
 - `USERPROFILE/python/dependencies/Lib/site-packages` is added to sys.path
 - `USERPROFILE/python/dependencies/Scripts` is added to the PATH
-- `qgis.utils.loadPlugin` is monkeypatched, injecting code that checks requirements in `requirements.txt` using `pkg_resources`
+- `qgis.utils.loadPlugin` is monkeypatched, injecting code that checks requirements in `requirements.txt` or `pyproject.toml` using `packaging`
 - if requirements are met, the plugin is loaded directly
 - if requirements are not met, the dialog is shown to the user*
   - on confirmation, selected libraries are installed with `pip [...] --prefix USERPROFILE/python/dependencies`

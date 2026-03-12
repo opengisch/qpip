@@ -5,9 +5,18 @@ import sys
 from collections import defaultdict, namedtuple
 from importlib import metadata
 from pathlib import Path
-from typing import Union
+from typing import List, Union
+
+try:
+    import tomllib
+except ModuleNotFoundError:
+    try:
+        import tomli as tomllib
+    except ModuleNotFoundError:
+        tomllib = None
 
 import qgis
+from packaging.markers import default_environment
 from packaging.requirements import Requirement
 from pyplugin_installer import installer
 from qgis.core import QgsApplication, QgsSettings
@@ -150,6 +159,35 @@ class Plugin:
 
         return res
 
+    def _read_requirements(self, plugin_dir: Path) -> List[str]:
+        """
+        Read dependency strings from a plugin directory.
+
+        Supports requirements.txt and pyproject.toml (project.dependencies).
+        If both exist, requirements.txt takes precedence.
+        """
+        requirements_path = plugin_dir / "requirements.txt"
+        if requirements_path.is_file():
+            with open(requirements_path, "r") as f:
+                lines = []
+                for line in f:
+                    line = line.strip()
+                    if not line or line.startswith("#") or line.startswith("-"):
+                        continue
+                    lines.append(line)
+                return lines
+
+        pyproject_path = plugin_dir / "pyproject.toml"
+        if pyproject_path.is_file() and tomllib is not None:
+            try:
+                with open(pyproject_path, "rb") as f:
+                    data = tomllib.load(f)
+                return data.get("project", {}).get("dependencies", [])
+            except Exception as e:
+                log(f"Failed to parse {pyproject_path}: {e}")
+
+        return []
+
     def check_deps(self, additional_plugins=[]) -> Union[MainDialog, bool]:
         """
         This checks dependencies for installed plugins and to-be installed plugins. If
@@ -177,38 +215,38 @@ class Plugin:
 
         # Checking requirements of all plugins
         needs_gui = False
+        env = default_environment()
         for plugin_name in plugin_names:
-            # If requirements.txt is present, we see if we can load it
-            requirements_path = self.plugins_path / plugin_name / "requirements.txt"
-            if requirements_path.is_file():
+            plugin_dir = self.plugins_path / plugin_name
+            requirement_lines = self._read_requirements(plugin_dir)
+            if requirement_lines:
                 log(f"Loading requirements for {plugin_name}")
-                with open(requirements_path, "r") as f:
-                    for line in f:
-                        line = line.strip()
-                        if not line or line.startswith("#") or line.startswith("-"):
-                            continue
-                        requirement = Requirement(line)
-                        try:
-                            dist = metadata.distribution(requirement.name)
-                            version = dist.metadata["Version"]
-                            if (
-                                requirement.specifier
-                                and not requirement.specifier.contains(version)
-                            ):
-                                error = VersionConflict(
-                                    f"{requirement.name} {version} does not satisfy {requirement.specifier}"
-                                )
-                                needs_gui = True
-                            else:
-                                error = None
-                        except metadata.PackageNotFoundError:
-                            error = DistributionNotFound(
-                                f"{requirement.name} is not installed"
+                for line in requirement_lines:
+                    requirement = Requirement(line)
+                    if requirement.marker and not requirement.marker.evaluate(env):
+                        continue
+
+                    try:
+                        dist = metadata.distribution(requirement.name)
+                        version = dist.metadata["Version"]
+                        if (
+                            requirement.specifier
+                            and not requirement.specifier.contains(version)
+                        ):
+                            error = VersionConflict(
+                                f"{requirement.name} {version} does not satisfy {requirement.specifier}"
                             )
                             needs_gui = True
-                        req = Req(plugin_name, str(requirement), error)
-                        libs[requirement.name].name = requirement.name
-                        libs[requirement.name].required_by.append(req)
+                        else:
+                            error = None
+                    except metadata.PackageNotFoundError:
+                        error = DistributionNotFound(
+                            f"{requirement.name} is not installed"
+                        )
+                        needs_gui = True
+                    req = Req(plugin_name, str(requirement), error)
+                    libs[requirement.name].name = requirement.name
+                    libs[requirement.name].required_by.append(req)
         dialog = MainDialog(
             libs.values(), self._check_on_startup(), self._check_on_install()
         )
