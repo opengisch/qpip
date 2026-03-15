@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Union
 
 import qgis
+from packaging.markers import default_environment
 from packaging.requirements import Requirement
 from pyplugin_installer import installer
 from qgis.core import QgsApplication, QgsSettings
@@ -177,6 +178,7 @@ class Plugin:
 
         # Checking requirements of all plugins
         needs_gui = False
+        env = default_environment()
         for plugin_name in plugin_names:
             # If requirements.txt is present, we see if we can load it
             requirements_path = self.plugins_path / plugin_name / "requirements.txt"
@@ -188,6 +190,9 @@ class Plugin:
                         if not line or line.startswith("#") or line.startswith("-"):
                             continue
                         requirement = Requirement(line)
+                        if requirement.marker and not requirement.marker.evaluate(env):
+                            continue
+
                         try:
                             dist = metadata.distribution(requirement.name)
                             version = dist.metadata["Version"]
