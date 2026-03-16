@@ -15,7 +15,16 @@ from qgis.core import QgsApplication, QgsSettings
 from qgis.PyQt.QtWidgets import QAction, QApplication
 
 from .ui import MainDialog
-from .utils import DistributionNotFound, Lib, Req, VersionConflict, icon, log, warn, run_cmd
+from .utils import (
+    DistributionNotFound, 
+    Lib, 
+    Req, 
+    VersionConflict, 
+    icon, 
+    log, 
+    warn, 
+    run_cmd
+)
 
 MissingDep = namedtuple("MissingDep", ["package", "requirement", "state"])
 

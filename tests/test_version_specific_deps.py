@@ -9,7 +9,6 @@ These tests verify that:
 """
 
 import sys
-from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -64,14 +63,14 @@ def test_migration_no_deps_dir(plugin_factory, tmp_path):
     """If dependencies/ doesn't exist, migration does nothing (no crash)."""
     deps = tmp_path / "python" / "dependencies"
     assert not deps.exists()
-    plugin = plugin_factory()
+    plugin_factory()
     # Should not create the directory
     assert not deps.exists()
 
 
 def test_migration_empty_deps_dir(plugin_factory, deps_dir):
     """If dependencies/ exists but is empty, migration does nothing."""
-    plugin = plugin_factory()
+    plugin_factory()
     # Directory should still be empty (no version subfolder created yet)
     items = list(deps_dir.iterdir())
     assert len(items) == 0
@@ -84,7 +83,7 @@ def test_migration_cleans_old_flat_layout(plugin_factory, deps_dir):
     (deps_dir / "cowsay").mkdir()
     (deps_dir / "some_file.txt").write_text("data")
 
-    plugin = plugin_factory()
+    plugin_factory()
 
     # Old packages should be removed
     assert not (deps_dir / "cowsay-4.0.dist-info").exists()
@@ -99,7 +98,7 @@ def test_migration_preserves_version_subfolders(plugin_factory, deps_dir):
     (deps_dir / "3.9").mkdir()
     (deps_dir / "3.9" / "some_package").mkdir()
 
-    plugin = plugin_factory()
+    plugin_factory()
 
     # Old flat packages removed, but version subfolder preserved
     assert not (deps_dir / "cowsay-4.0.dist-info").exists()
@@ -114,7 +113,7 @@ def test_migration_skips_already_migrated(plugin_factory, deps_dir):
     versioned.mkdir()
     (versioned / "cowsay-4.0.dist-info").mkdir()
 
-    plugin = plugin_factory()
+    plugin_factory()
 
     # Everything should still be there
     assert (versioned / "cowsay-4.0.dist-info").exists()
