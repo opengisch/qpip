@@ -7,15 +7,15 @@ from importlib import metadata
 from pathlib import Path
 from typing import Union
 
-import pkg_resources
 import qgis
-from pkg_resources import DistributionNotFound, VersionConflict
+from packaging.markers import default_environment
+from packaging.requirements import Requirement
 from pyplugin_installer import installer
 from qgis.core import QgsApplication, QgsSettings
 from qgis.PyQt.QtWidgets import QAction, QApplication
 
 from .ui import MainDialog
-from .utils import Lib, Req, icon, log, run_cmd
+from .utils import DistributionNotFound, Lib, Req, VersionConflict, icon, log, run_cmd
 
 MissingDep = namedtuple("MissingDep", ["package", "requirement", "state"])
 
@@ -178,24 +178,42 @@ class Plugin:
 
         # Checking requirements of all plugins
         needs_gui = False
+        env = default_environment()
         for plugin_name in plugin_names:
             # If requirements.txt is present, we see if we can load it
             requirements_path = self.plugins_path / plugin_name / "requirements.txt"
             if requirements_path.is_file():
                 log(f"Loading requirements for {plugin_name}")
                 with open(requirements_path, "r") as f:
-                    requirements = pkg_resources.parse_requirements(f)
-                    working_set = pkg_resources.WorkingSet()
-                    for requirement in requirements:
+                    for line in f:
+                        line = line.strip()
+                        if not line or line.startswith("#") or line.startswith("-"):
+                            continue
+                        requirement = Requirement(line)
+                        if requirement.marker and not requirement.marker.evaluate(env):
+                            continue
+
                         try:
-                            working_set.require(str(requirement))
-                            error = None
-                        except (VersionConflict, DistributionNotFound) as e:
+                            dist = metadata.distribution(requirement.name)
+                            version = dist.metadata["Version"]
+                            if (
+                                requirement.specifier
+                                and not requirement.specifier.contains(version)
+                            ):
+                                error = VersionConflict(
+                                    f"{requirement.name} {version} does not satisfy {requirement.specifier}"
+                                )
+                                needs_gui = True
+                            else:
+                                error = None
+                        except metadata.PackageNotFoundError:
+                            error = DistributionNotFound(
+                                f"{requirement.name} is not installed"
+                            )
                             needs_gui = True
-                            error = e
                         req = Req(plugin_name, str(requirement), error)
-                        libs[requirement.key].name = requirement.key
-                        libs[requirement.key].required_by.append(req)
+                        libs[requirement.name].name = requirement.name
+                        libs[requirement.name].required_by.append(req)
         dialog = MainDialog(
             libs.values(), self._check_on_startup(), self._check_on_install()
         )
