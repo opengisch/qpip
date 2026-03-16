@@ -22,8 +22,8 @@ from .utils import (
     VersionConflict,
     icon,
     log,
-    warn,
     run_cmd,
+    warn,
 )
 
 MissingDep = namedtuple("MissingDep", ["package", "requirement", "state"])
