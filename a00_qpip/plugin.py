@@ -16,14 +16,14 @@ from qgis.PyQt.QtWidgets import QAction, QApplication
 
 from .ui import MainDialog
 from .utils import (
-    DistributionNotFound, 
-    Lib, 
-    Req, 
-    VersionConflict, 
-    icon, 
-    log, 
-    warn, 
-    run_cmd
+    DistributionNotFound,
+    Lib,
+    Req,
+    VersionConflict,
+    icon,
+    log,
+    warn,
+    run_cmd,
 )
 
 MissingDep = namedtuple("MissingDep", ["package", "requirement", "state"])
@@ -375,7 +375,7 @@ class Plugin:
         into the new version-specific folder.
         """
         if not self.base_deps_path.is_dir():
-            log('Nothing to migrate starting clean')
+            log("Nothing to migrate starting clean")
             return
 
         # Check for dist-info dirs directly in the old flat layout

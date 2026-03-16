@@ -126,7 +126,7 @@ def test_migration_handles_locked_files(plugin_factory, deps_dir):
 
     with patch("a00_qpip.plugin.shutil.rmtree", side_effect=OSError("locked")):
         with patch("a00_qpip.plugin.warn") as mock_warn:
-            plugin = plugin_factory()
+            plugin_factory()
             # The .pyd file removal may succeed (only rmtree is mocked),
             # but at least the dist-info dir removal should fail and warn
             if mock_warn.called:
