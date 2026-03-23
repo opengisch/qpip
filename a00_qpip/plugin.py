@@ -43,6 +43,8 @@ class Plugin:
             Path(QgsApplication.qgisSettingsDirPath()) / "python" / "dependencies"
         )
         py_ver = f"{sys.version_info.major}.{sys.version_info.minor}"
+
+        self.base_deps_path = (Path(QgsApplication.qgisSettingsDirPath()) / "python" / "dependencies")
         self.prefix_path = self.base_deps_path / py_ver
         self.site_packages_path = self.prefix_path
         self.bin_path = self.prefix_path / "bin"
