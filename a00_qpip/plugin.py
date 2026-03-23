@@ -1,5 +1,6 @@
 import os
 import platform
+import shutil
 import subprocess
 import sys
 from collections import defaultdict, namedtuple
@@ -7,16 +8,24 @@ from importlib import metadata
 from pathlib import Path
 from typing import Union
 
-import pkg_resources
-import pyplugin_installer
 import qgis
-from pkg_resources import DistributionNotFound, VersionConflict
+from packaging.markers import default_environment
+from packaging.requirements import Requirement
 from pyplugin_installer import installer
 from qgis.core import QgsApplication, QgsSettings
 from qgis.PyQt.QtWidgets import QAction, QApplication
 
 from .ui import MainDialog
-from .utils import Lib, Req, icon, log, run_cmd
+from .utils import (
+    DistributionNotFound,
+    Lib,
+    Req,
+    VersionConflict,
+    icon,
+    log,
+    run_cmd,
+    warn,
+)
 
 MissingDep = namedtuple("MissingDep", ["package", "requirement", "state"])
 
@@ -33,8 +42,12 @@ class Plugin:
         self.prefix_path = (
             Path(QgsApplication.qgisSettingsDirPath()) / "python" / "dependencies"
         )
+        py_ver = f"{sys.version_info.major}.{sys.version_info.minor}"
+        self.prefix_path = self.base_deps_path / py_ver
         self.site_packages_path = self.prefix_path
         self.bin_path = self.prefix_path / "bin"
+
+        self._migrate_old_dependencies()
 
         if self.site_packages_path not in sys.path:
             log(f"Adding {self.site_packages_path} to PYTHONPATH")
@@ -182,6 +195,7 @@ class Plugin:
         qgis_path = Path(QgsApplication.prefixPath()).resolve()
 
         needs_gui = False
+        env = default_environment()
         for plugin_name in plugin_names:
             # Get metadata for a specific plugin by its ID (folder name) as a dictionary
             plugin_metadata = all_plugin_metadata.get(plugin_name)
@@ -201,18 +215,35 @@ class Plugin:
             if requirements_path.is_file():
                 log(f"Loading requirements for {plugin_name}")
                 with open(requirements_path, "r") as f:
-                    requirements = pkg_resources.parse_requirements(f)
-                    working_set = pkg_resources.WorkingSet()
-                    for requirement in requirements:
+                    for line in f:
+                        line = line.strip()
+                        if not line or line.startswith("#") or line.startswith("-"):
+                            continue
+                        requirement = Requirement(line)
+                        if requirement.marker and not requirement.marker.evaluate(env):
+                            continue
+
                         try:
-                            working_set.require(str(requirement))
-                            error = None
-                        except (VersionConflict, DistributionNotFound) as e:
+                            dist = metadata.distribution(requirement.name)
+                            version = dist.metadata["Version"]
+                            if (
+                                requirement.specifier
+                                and not requirement.specifier.contains(version)
+                            ):
+                                error = VersionConflict(
+                                    f"{requirement.name} {version} does not satisfy {requirement.specifier}"
+                                )
+                                needs_gui = True
+                            else:
+                                error = None
+                        except metadata.PackageNotFoundError:
+                            error = DistributionNotFound(
+                                f"{requirement.name} is not installed"
+                            )
                             needs_gui = True
-                            error = e
                         req = Req(plugin_name, str(requirement), error)
-                        libs[requirement.key].name = requirement.key
-                        libs[requirement.key].required_by.append(req)
+                        libs[requirement.name].name = requirement.name
+                        libs[requirement.name].required_by.append(req)
         dialog = MainDialog(
             libs.values(), self._check_on_startup(), self._check_on_install()
         )
@@ -351,6 +382,59 @@ class Plugin:
             subprocess.Popen(["open", str(self.prefix_path)])
         else:
             subprocess.Popen(["xdg-open", str(self.prefix_path)])
+
+    def _migrate_old_dependencies(self):
+        """
+        Detect and clean up the old flat dependencies layout.
+
+        Before version-specific folders were introduced, packages were installed
+        directly into python/dependencies/. After a Python version change (e.g.
+        QGIS 3→4 profile migration), these packages may be incompatible.
+
+        If the old layout is detected (dist-info directories directly in
+        base_deps_path), remove it so dependencies get cleanly reinstalled
+        into the new version-specific folder.
+        """
+        if not self.base_deps_path.is_dir():
+            log("Nothing to migrate starting clean")
+            return
+
+        # Check for dist-info dirs directly in the old flat layout
+        has_old_packages = any(
+            p.is_dir() and p.name.endswith(".dist-info")
+            for p in self.base_deps_path.iterdir()
+        )
+        if not has_old_packages:
+            return
+
+        log(
+            f"Old flat dependencies layout detected in {self.base_deps_path}. "
+            f"Cleaning up for Python {sys.version_info.major}.{sys.version_info.minor}."
+        )
+
+        # Remove everything except version-specific subdirectories
+        failed = []
+        for item in self.base_deps_path.iterdir():
+            # Keep existing version-specific folders (e.g. "3.12")
+            if item.is_dir() and item.name[:1].isdigit() and "." in item.name:
+                continue
+            try:
+                if item.is_dir():
+                    shutil.rmtree(item)
+                else:
+                    item.unlink()
+            except OSError as e:
+                failed.append(item.name)
+                log(f"Failed to remove {item}: {e}")
+
+        if failed:
+            warn(
+                f"Could not remove {len(failed)} items from old dependencies folder. "
+                f"Files may be locked by the current session. "
+                f"Please restart QGIS and try again."
+            )
+        else:
+            log("Old dependencies removed. They will be reinstalled on next check.")
 
     def _check_on_startup(self):
         return self.settings.value("check_on_startup", "no") == "yes"
