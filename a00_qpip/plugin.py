@@ -185,6 +185,9 @@ class Plugin:
         # Loading installed libs
         for dist in metadata.distributions():
             name = dist.metadata["Name"]
+            if not name:
+                log(f"Dist {metadata} does not have a name. Skipping...")
+                continue
             libs[name].name = name
             libs[name].installed_dist = dist
             if Path(str(dist._path)).parent != self.site_packages_path:
