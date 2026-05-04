@@ -12,7 +12,7 @@ import qgis
 from packaging.markers import default_environment
 from packaging.requirements import Requirement
 from pyplugin_installer import installer
-from qgis.core import QgsApplication, QgsSettings
+from qgis.core import Qgis, QgsApplication, QgsSettings
 from qgis.PyQt.QtWidgets import QAction, QApplication
 
 from .ui import MainDialog
@@ -88,6 +88,10 @@ class Plugin:
         self.show_folder_action.triggered.connect(self.show_folder)
         self.iface.addPluginToMenu("QPIP", self.show_folder_action)
 
+        self.copy_python_path_action = QAction("Copy python interpreter path")
+        self.copy_python_path_action.triggered.connect(self.copy_python_interpreter_path)
+        self.iface.addPluginToMenu("QPIP", self.copy_python_path_action)
+
     def initComplete(self):
         if self._defered_packages:
             log(f"Initialization complete. Loading deferred packages")
@@ -102,6 +106,7 @@ class Plugin:
         self.iface.removePluginMenu("QPIP", self.check_action)
         self.iface.removeToolBarIcon(self.check_action)
         self.iface.removePluginMenu("QPIP", self.show_folder_action)
+        self.iface.removePluginMenu("QPIP", self.copy_python_path_action)
 
         # Remove monkey patch
         log("Unapplying monkey patch to qgis.utils and installer")
@@ -369,6 +374,15 @@ class Plugin:
             subprocess.Popen(["open", str(self.prefix_path)])
         else:
             subprocess.Popen(["xdg-open", str(self.prefix_path)])
+
+    def copy_python_interpreter_path(self):
+        python_path = self.python_command()
+        QApplication.clipboard().setText(python_path)
+        self.iface.messageBar().pushMessage(
+            "Success",
+            f"Copied Python interpreter path: {python_path}",
+            level=Qgis.Success,
+        )
 
     def _migrate_old_dependencies(self):
         """
