@@ -231,6 +231,7 @@ class Plugin:
                         req = Req(plugin_name, str(requirement), error)
                         libs[requirement.name].name = requirement.name
                         libs[requirement.name].required_by.append(req)
+
         dialog = MainDialog(
             libs.values(), self._check_on_startup(), self._check_on_install()
         )
@@ -304,18 +305,48 @@ class Plugin:
         self.prefix_path.mkdir(parents=True, exist_ok=True)
         log(f"Will pip install {reqs_to_install}")
 
+        cmd = [
+            self.python_command(),
+            "-um",
+            "pip",
+            "install",
+            *reqs_to_install,
+            "--target",
+            str(self.prefix_path),
+        ]
+
+        # check to see if any dependencies have versions already installed - if it is, add --upgrade option
+        already_installed = self.check_already_installed(reqs_to_install=reqs_to_install)
+        if already_installed:
+            cmd += ["--upgrade"]
+
         run_cmd(
-            [
-                self.python_command(),
-                "-um",
-                "pip",
-                "install",
-                *reqs_to_install,
-                "--target",
-                str(self.prefix_path),
-            ],
+            cmd,
             f"installing {len(reqs_to_install)} requirements",
         )
+
+    def check_already_installed(self,reqs_to_install=None):
+
+        # get a list of all python packages installed
+        old_packages = [str(p) for p in self.prefix_path.iterdir() if p.is_dir() and p.name.endswith(".dist-info")]
+        
+        # check if the dependencies you are trying to install are already in directory/have older verisons
+        present = [i for i in old_packages if any(j.split("==")[0].replace("-","_").lower() in i for j in reqs_to_install)]
+        log(f"testing present: {present}")
+
+        # if older versions of the package exists, return True; else, return False
+        if len(present) > 0:
+
+            # remove old packages
+            for p in present:
+                log(f"removing {p}")
+                shutil.rmtree(p)
+            
+            # return True to let pip_install_reqs to know upgrade needs to be added
+            return True
+        
+        # else, return False
+        return False
 
     def python_command(self):
         if (Path(sys.prefix) / "conda-meta").exists():  # Conda
