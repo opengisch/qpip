@@ -4,7 +4,7 @@ import shutil
 import subprocess
 import sys
 from collections import defaultdict, namedtuple
-from importlib import metadata
+from importlib import metadata, reload, import_module
 from pathlib import Path
 from typing import Union
 
@@ -323,8 +323,6 @@ class Plugin:
             reqs_to_install=reqs_to_install
         )
 
-        log(f"already_installed: {already_installed}\nupgrade: {upgrade}")
-
         # if a package needs to be upgraded, add the upgrade command and run install command
         if upgrade:
             cmd += ["--upgrade"]
@@ -375,16 +373,13 @@ class Plugin:
                     if package_name in j.split("==")[0].replace("-", "_").lower()
                 ]
                 new_version = version_list[0].split("==")[1]
-
-                # if a user wants to install the previous version, we need to remove
-                # the present version and install the previous version
-                if Version(present_version) > Version(new_version):
-
-                    # remove present version so we have no conflicting versions
-                    shutil.rmtree(p)
-
-                # if the current version doesn't match the new version, an upgrade is needed
+                
+                # if the current version doesn't match the new version, remove current install 
+                # and upgrade
                 if Version(present_version) != Version(new_version):
+                    
+                    # remove the old versions
+                    shutil.rmtree(p)
 
                     # return True for already_installed, True for upgrade
                     return True, True
@@ -412,7 +407,7 @@ class Plugin:
         # set information and buttons in the message box, including connecting the Ok button to a restart command
         msg.setIcon(QMessageBox.Icon.Information)
         msg.setText(
-            "Restart QGIS Now?\n\nThis is recommended, as QGIS only registers the new package upon a restart"
+            "Restart QGIS Now?\n\nThis is recommended, as QGIS only registers updates to Python packages upon a restart."
         )
         msg.setWindowTitle("Restart")
         msg.setStandardButtons(
