@@ -4,6 +4,7 @@ import shutil
 import subprocess
 import sys
 from collections import defaultdict, namedtuple
+from importlib import metadata
 from pathlib import Path
 from typing import Union
 
