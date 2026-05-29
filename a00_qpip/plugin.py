@@ -316,28 +316,23 @@ class Plugin:
             *reqs_to_install,
             "--target",
             str(self.prefix_path),
+            "--upgrade"
         ]
 
         # check to see if any dependencies have versions already installed - if it is, add --upgrade option
-        already_installed, upgrade = self.check_already_installed(
+        already_installed = self.check_already_installed(
             reqs_to_install=reqs_to_install
         )
 
-        # if a package needs to be upgraded, add the upgrade command and run install command
-        if upgrade:
-            cmd += ["--upgrade"]
-            run_cmd(
-                cmd,
-                f"installing {len(reqs_to_install)} requirements",
-            )
-            self.show_restart_message()
+        # run the installed command
+        run_cmd(
+            cmd,
+            f"installing {len(reqs_to_install)} requirements",
+        )
 
-        # if an upgrade option was not selected but package has not been installed, install it
-        if not already_installed:
-            run_cmd(
-                cmd,
-                f"installing {len(reqs_to_install)} requirements",
-            )
+        # if the package has been installed before, prompt user to restart
+        if already_installed:
+            self.show_restart_message()
 
     def check_already_installed(self, reqs_to_install=None):
 
@@ -382,13 +377,13 @@ class Plugin:
                     shutil.rmtree(p)
 
                     # return True for already_installed, True for upgrade
-                    return True, True
+                    return True
 
             # return True for already_installed, but False for upgrade (no reinstall)
-            return True, False
+            return True
 
         # else, return False for already_installed, and False for upgrade since it is not installed
-        return False, False
+        return False
 
     def restart_qgis(self):
 
