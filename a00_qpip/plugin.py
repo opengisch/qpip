@@ -319,7 +319,7 @@ class Plugin:
             "--upgrade"
         ]
 
-        # check to see if any dependencies have versions already installed - if it is, add --upgrade option
+        # check to see if any dependencies have versions already installed - if it is, we need to propose a restart
         already_installed = self.check_already_installed(
             reqs_to_install=reqs_to_install
         )
@@ -334,14 +334,19 @@ class Plugin:
         if already_installed:
             self.show_restart_message()
 
-    def check_already_installed(self, reqs_to_install=None):
+    def qpip_installed_packages(self):
 
-        # get a list of all python packages installed
-        old_packages = [
+        return [
             str(p)
             for p in self.prefix_path.iterdir()
             if p.is_dir() and p.name.endswith(".dist-info")
         ]
+
+
+    def check_already_installed(self, reqs_to_install=None):
+
+        # get a list of all python packages installed
+        old_packages = self.qpip_installed_packages()
 
         # check if the dependencies you are trying to install are already in directory/have older verisons
         present = [
