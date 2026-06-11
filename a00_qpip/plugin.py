@@ -414,7 +414,7 @@ class Plugin:
             QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.Cancel
         )
         childButtonBox = [x for x in msg.children() if type(x) is QDialogButtonBox][0]
-        childButtonBox.button(QDialogButtonBox.Ok).clicked.connect(self.restart_qgis)
+        childButtonBox.button(QDialogButtonBox.StandardButton.Ok).clicked.connect(self.restart_qgis)
 
         # show message box
         retval = msg.exec()
