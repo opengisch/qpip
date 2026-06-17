@@ -15,7 +15,7 @@ from packaging.version import Version
 from pyplugin_installer import installer
 from qgis.core import QgsApplication, QgsSettings
 from qgis.PyQt.QtCore import QProcess
-from qgis.PyQt.QtWidgets import QAction, QApplication, QMessageBox, QDialogButtonBox
+from qgis.PyQt.QtWidgets import QAction, QApplication, QDialogButtonBox, QMessageBox
 
 from .ui import MainDialog
 from .utils import (
@@ -316,7 +316,7 @@ class Plugin:
             *reqs_to_install,
             "--target",
             str(self.prefix_path),
-            "--upgrade"
+            "--upgrade",
         ]
 
         # check to see if any dependencies have versions already installed - if it is, we need to propose a restart
@@ -335,16 +335,13 @@ class Plugin:
             self.show_restart_message()
 
     def qpip_installed_packages(self):
-
         return [
             str(p)
             for p in self.prefix_path.iterdir()
             if p.is_dir() and p.name.endswith(".dist-info")
         ]
 
-
     def check_already_installed(self, reqs_to_install=None):
-
         # get a list of all python packages installed
         old_packages = self.qpip_installed_packages()
 
@@ -359,10 +356,8 @@ class Plugin:
 
         # if older versions of the package exists, return True; else, return False
         if len(present) > 0:
-
             # loop over all packages to see if any have differing versions
             for p in present:
-
                 # get names of packages and versions
                 package = p.split("/")[-1]
                 package_name = package.split("-")[0]
@@ -373,11 +368,10 @@ class Plugin:
                     if package_name in j.split("==")[0].replace("-", "_").lower()
                 ]
                 new_version = version_list[0].split("==")[1]
-                
-                # if the current version doesn't match the new version, remove current install 
+
+                # if the current version doesn't match the new version, remove current install
                 # and upgrade
                 if Version(present_version) != Version(new_version):
-                    
                     # remove the old versions
                     shutil.rmtree(p)
 
@@ -391,7 +385,6 @@ class Plugin:
         return False
 
     def restart_qgis(self):
-
         # find your qgis executable
         qgis_exe = QgsApplication.applicationFilePath()
 
@@ -400,7 +393,6 @@ class Plugin:
         self.iface.actionExit().trigger()
 
     def show_restart_message(self):
-
         # initiate message box
         msg = QMessageBox()
 
@@ -414,10 +406,12 @@ class Plugin:
             QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.Cancel
         )
         childButtonBox = [x for x in msg.children() if type(x) is QDialogButtonBox][0]
-        childButtonBox.button(QDialogButtonBox.StandardButton.Ok).clicked.connect(self.restart_qgis)
+        childButtonBox.button(QDialogButtonBox.StandardButton.Ok).clicked.connect(
+            self.restart_qgis
+        )
 
         # show message box
-        retval = msg.exec()
+        msg.exec()
 
     def python_command(self):
         if (Path(sys.prefix) / "conda-meta").exists():  # Conda
