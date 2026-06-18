@@ -11,9 +11,11 @@ from typing import Union
 import qgis
 from packaging.markers import default_environment
 from packaging.requirements import Requirement
+from packaging.version import Version
 from pyplugin_installer import installer
 from qgis.core import QgsApplication, QgsSettings
-from qgis.PyQt.QtWidgets import QAction, QApplication
+from qgis.PyQt.QtCore import QProcess
+from qgis.PyQt.QtWidgets import QAction, QApplication, QDialogButtonBox, QMessageBox
 
 from .ui import MainDialog
 from .utils import (
@@ -207,6 +209,7 @@ class Plugin:
                         if not line or line.startswith("#") or line.startswith("-"):
                             continue
                         requirement = Requirement(line)
+                        log(f"marker: {requirement.marker}")
                         if requirement.marker and not requirement.marker.evaluate(env):
                             continue
 
@@ -231,6 +234,7 @@ class Plugin:
                         req = Req(plugin_name, str(requirement), error)
                         libs[requirement.name].name = requirement.name
                         libs[requirement.name].required_by.append(req)
+
         dialog = MainDialog(
             libs.values(), self._check_on_startup(), self._check_on_install()
         )
@@ -304,18 +308,110 @@ class Plugin:
         self.prefix_path.mkdir(parents=True, exist_ok=True)
         log(f"Will pip install {reqs_to_install}")
 
+        cmd = [
+            self.python_command(),
+            "-um",
+            "pip",
+            "install",
+            *reqs_to_install,
+            "--target",
+            str(self.prefix_path),
+            "--upgrade",
+        ]
+
+        # check to see if any dependencies have versions already installed - if it is, we need to propose a restart
+        already_installed = self.check_already_installed(
+            reqs_to_install=reqs_to_install
+        )
+
+        # run the installed command
         run_cmd(
-            [
-                self.python_command(),
-                "-um",
-                "pip",
-                "install",
-                *reqs_to_install,
-                "--target",
-                str(self.prefix_path),
-            ],
+            cmd,
             f"installing {len(reqs_to_install)} requirements",
         )
+
+        # if the package has been installed before, prompt user to restart
+        if already_installed:
+            self.show_restart_message()
+
+    def qpip_installed_packages(self):
+        return [
+            str(p)
+            for p in self.prefix_path.iterdir()
+            if p.is_dir() and p.name.endswith(".dist-info")
+        ]
+
+    def check_already_installed(self, reqs_to_install=None):
+        # get a list of all python packages installed
+        old_packages = self.qpip_installed_packages()
+
+        # check if the dependencies you are trying to install are already in directory/have older verisons
+        present = [
+            i
+            for i in old_packages
+            if any(
+                j.split("==")[0].replace("-", "_").lower() in i for j in reqs_to_install
+            )
+        ]
+
+        # if older versions of the package exists, return True; else, return False
+        if len(present) > 0:
+            # loop over all packages to see if any have differing versions
+            for p in present:
+                # get names of packages and versions
+                package = p.split("/")[-1]
+                package_name = package.split("-")[0]
+                present_version = package.replace(".dist-info", "").split("-")[1]
+                version_list = [
+                    j
+                    for j in reqs_to_install
+                    if package_name in j.split("==")[0].replace("-", "_").lower()
+                ]
+                new_version = version_list[0].split("==")[1]
+
+                # if the current version doesn't match the new version, remove current install
+                # and upgrade
+                if Version(present_version) != Version(new_version):
+                    # remove the old versions
+                    shutil.rmtree(p)
+
+                    # return True for already_installed, True for upgrade
+                    return True
+
+            # return True for already_installed, but False for upgrade (no reinstall)
+            return True
+
+        # else, return False for already_installed, and False for upgrade since it is not installed
+        return False
+
+    def restart_qgis(self):
+        # find your qgis executable
+        qgis_exe = QgsApplication.applicationFilePath()
+
+        # restart QGIS
+        QProcess.startDetached(qgis_exe, [])
+        self.iface.actionExit().trigger()
+
+    def show_restart_message(self):
+        # initiate message box
+        msg = QMessageBox()
+
+        # set information and buttons in the message box, including connecting the Ok button to a restart command
+        msg.setIcon(QMessageBox.Icon.Information)
+        msg.setText(
+            "Restart QGIS Now?\n\nThis is recommended, as QGIS only registers updates to Python packages upon a restart."
+        )
+        msg.setWindowTitle("Restart")
+        msg.setStandardButtons(
+            QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.Cancel
+        )
+        childButtonBox = [x for x in msg.children() if type(x) is QDialogButtonBox][0]
+        childButtonBox.button(QDialogButtonBox.StandardButton.Ok).clicked.connect(
+            self.restart_qgis
+        )
+
+        # show message box
+        msg.exec()
 
     def python_command(self):
         if (Path(sys.prefix) / "conda-meta").exists():  # Conda
