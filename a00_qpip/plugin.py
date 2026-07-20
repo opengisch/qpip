@@ -92,7 +92,7 @@ class Plugin:
 
     def initComplete(self):
         if self._defered_packages:
-            log(f"Initialization complete. Loading deferred packages")
+            log("Initialization complete. Loading deferred packages")
             dialog, run_gui = self.check_deps(additional_plugins=self._defered_packages)
             if run_gui:
                 self.prompt_install(dialog)
