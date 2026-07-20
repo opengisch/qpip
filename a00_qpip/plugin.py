@@ -92,13 +92,19 @@ class Plugin:
 
     def initComplete(self):
         if self._defered_packages:
-            log(f"Initialization complete. Loading deferred packages")
+            log("Initialization complete. Loading deferred packages")
             dialog, run_gui = self.check_deps(additional_plugins=self._defered_packages)
             if run_gui:
                 self.prompt_install(dialog)
             self.save_settings(dialog)
             self.start_packages(self._defered_packages)
         self._defered_packages = []
+
+        # qpip hijacks the `iface.initializationCompleted` signal for its own purpose
+        # re-emit this signal after qpip has done its magic
+        # see https://github.com/opengisch/qpip/issues/70
+        self.iface.initializationCompleted.disconnect(self.initComplete)
+        self.iface.initializationCompleted.emit()
 
     def unload(self):
         self.iface.removePluginMenu("QPIP", self.check_action)
