@@ -100,6 +100,10 @@ class Plugin:
             self.start_packages(self._defered_packages)
         self._defered_packages = []
 
+        # fix https://github.com/opengisch/qpip/issues/70
+        self.iface.initializationCompleted.disconnect(self.initComplete)  # avoid infinite recursion
+        self.iface.initializationCompleted.emit()
+
     def unload(self):
         self.iface.removePluginMenu("QPIP", self.check_action)
         self.iface.removeToolBarIcon(self.check_action)
