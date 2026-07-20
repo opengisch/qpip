@@ -100,8 +100,10 @@ class Plugin:
             self.start_packages(self._defered_packages)
         self._defered_packages = []
 
-        # fix https://github.com/opengisch/qpip/issues/70
-        self.iface.initializationCompleted.disconnect(self.initComplete)  # avoid infinite recursion
+        # qpip hijacks the `iface.initializationCompleted` signal for its own purpose
+        # re-emit this signal after qpip has done its magic
+        # see https://github.com/opengisch/qpip/issues/70
+        self.iface.initializationCompleted.disconnect(self.initComplete)
         self.iface.initializationCompleted.emit()
 
     def unload(self):
