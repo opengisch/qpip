@@ -46,7 +46,14 @@ def icon(name):
     return QIcon(os.path.join(os.path.dirname(__file__), "icons", name))
 
 
-def run_cmd(args, description="running a system command"):
+def run_cmd(args, description="running a system command", report_errors=True) -> bool:
+    """
+    Runs a command, showing a progress dialog.
+
+    Returns whether the command succeeded. Failures are reported to the user
+    unless `report_errors` is False, which allows the caller to retry with
+    another command before bothering the user.
+    """
     progress_dlg = QProgressDialog(
         description, "Abort", 0, 0, parent=iface.mainWindow()
     )
@@ -90,15 +97,16 @@ def run_cmd(args, description="running a system command"):
     progress_dlg.close()
 
     if process.returncode != 0:
-        warn(f"Command failed.")
-        message = QMessageBox(
-            QMessageBox.Icon.Warning,
-            "Command failed",
-            f"Encountered an error while {description} !",
-            parent=iface.mainWindow(),
-        )
-        message.setDetailedText(full_output)
-        message.exec()
+        warn("Command failed.")
+        if report_errors:
+            message = QMessageBox(
+                QMessageBox.Icon.Warning,
+                "Command failed",
+                f"Encountered an error while {description} !",
+                parent=iface.mainWindow(),
+            )
+            message.setDetailedText(full_output)
+            message.exec()
     else:
         log("Command succeeded.")
         iface.messageBar().pushMessage(
@@ -106,3 +114,5 @@ def run_cmd(args, description="running a system command"):
             f"{description.capitalize()} succeeded",
             level=Qgis.Success,
         )
+
+    return process.returncode == 0
