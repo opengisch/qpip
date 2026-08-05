@@ -11,6 +11,7 @@ from typing import Union
 import qgis
 from packaging.markers import default_environment
 from packaging.requirements import Requirement
+from packaging.utils import canonicalize_name
 from packaging.version import Version
 from pyplugin_installer import installer
 from qgis.core import QgsApplication, QgsSettings
@@ -196,10 +197,11 @@ class Plugin:
             if not name:
                 log(f"Dist {metadata} does not have a name. Skipping...")
                 continue
-            libs[name].name = name
-            libs[name].installed_dist = dist
+            key = canonicalize_name(name)
+            libs[key].name = name
+            libs[key].installed_dist = dist
             if Path(str(dist._path)).parent != self.site_packages_path:
-                libs[name].qpip = False
+                libs[key].qpip = False
 
         # Checking requirements of all plugins
         needs_gui = False
@@ -238,8 +240,9 @@ class Plugin:
                             )
                             needs_gui = True
                         req = Req(plugin_name, str(requirement), error)
-                        libs[requirement.name].name = requirement.name
-                        libs[requirement.name].required_by.append(req)
+                        key = canonicalize_name(requirement.name)
+                        libs[key].name = requirement.name
+                        libs[key].required_by.append(req)
 
         dialog = MainDialog(
             libs.values(), self._check_on_startup(), self._check_on_install()
