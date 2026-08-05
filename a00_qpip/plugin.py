@@ -348,47 +348,41 @@ class Plugin:
         ]
 
     def check_already_installed(self, reqs_to_install=None):
-        # get a list of all python packages installed
+        if not reqs_to_install:
+            return False
+
+        reqs = [Requirement(r) for r in reqs_to_install]
         old_packages = self.qpip_installed_packages()
+        already_installed = False
 
-        # check if the dependencies you are trying to install are already in directory/have older verisons
-        present = [
-            i
-            for i in old_packages
-            if any(
-                j.split("==")[0].replace("-", "_").lower() in i for j in reqs_to_install
-            )
-        ]
+        for p in old_packages:
+            dist_info = Path(p).name
+            if not dist_info.endswith(".dist-info"):
+                continue
 
-        # if older versions of the package exists, return True; else, return False
-        if len(present) > 0:
-            # loop over all packages to see if any have differing versions
-            for p in present:
-                # get names of packages and versions
-                package = p.split("/")[-1]
-                package_name = package.split("-")[0]
-                present_version = package.replace(".dist-info", "").split("-")[1]
-                version_list = [
-                    j
-                    for j in reqs_to_install
-                    if package_name in j.split("==")[0].replace("-", "_").lower()
-                ]
-                new_version = version_list[0].split("==")[1]
+            name_version = dist_info[: -len(".dist-info")]
+            package_name, present_version = name_version.rsplit("-", 1)
+            package_key = package_name.replace("-", "_").lower()
 
-                # if the current version doesn't match the new version, remove current install
-                # and upgrade
-                if Version(present_version) != Version(new_version):
-                    # remove the old versions
-                    shutil.rmtree(p)
+            matching_reqs = [
+                req
+                for req in reqs
+                if req.name.replace("-", "_").lower() == package_key
+            ]
+            if not matching_reqs:
+                continue
 
-                    # return True for already_installed, True for upgrade
-                    return True
+            already_installed = True
+            req = matching_reqs[0]
 
-            # return True for already_installed, but False for upgrade (no reinstall)
-            return True
+            # If installed version does not satisfy the requirement, remove it so pip can reinstall
+            if req.specifier and not req.specifier.contains(
+                present_version, prereleases=True
+            ):
+                shutil.rmtree(p)
+                return True
 
-        # else, return False for already_installed, and False for upgrade since it is not installed
-        return False
+        return already_installed
 
     def restart_qgis(self):
         # find your qgis executable
