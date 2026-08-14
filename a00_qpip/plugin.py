@@ -11,6 +11,7 @@ from typing import Union
 import qgis
 from packaging.markers import default_environment
 from packaging.requirements import Requirement
+from packaging.utils import canonicalize_name
 from packaging.version import Version
 from pyplugin_installer import installer
 from qgis.core import QgsApplication, QgsSettings
@@ -201,6 +202,10 @@ class Plugin:
             if Path(str(dist._path)).parent != self.site_packages_path:
                 libs[name].qpip = False
 
+        # Normalized lookup so similar package names (lower/upper case) all resolve to the
+        # same Lib that was cataloged above, regardless of how the requirement is spelled.
+        normalized_libs = {canonicalize_name(name): lib for name, lib in libs.items()}
+
         # Checking requirements of all plugins
         needs_gui = False
         env = default_environment()
@@ -219,9 +224,10 @@ class Plugin:
                         if requirement.marker and not requirement.marker.evaluate(env):
                             continue
 
-                        try:
-                            dist = metadata.distribution(requirement.name)
-                            version = dist.metadata["Version"]
+                        norm_name = canonicalize_name(requirement.name)
+                        installed_lib = normalized_libs.get(norm_name)
+                        if installed_lib is not None and installed_lib.installed_dist is not None:
+                            version = installed_lib.installed_dist.metadata["Version"]
                             if (
                                 requirement.specifier
                                 and not requirement.specifier.contains(version)
@@ -232,14 +238,17 @@ class Plugin:
                                 needs_gui = True
                             else:
                                 error = None
-                        except metadata.PackageNotFoundError:
+                        else:
                             error = DistributionNotFound(
                                 f"{requirement.name} is not installed"
                             )
                             needs_gui = True
                         req = Req(plugin_name, str(requirement), error)
-                        libs[requirement.name].name = requirement.name
-                        libs[requirement.name].required_by.append(req)
+                        if installed_lib is None:
+                            installed_lib = libs[requirement.name]
+                            installed_lib.name = requirement.name
+                            normalized_libs[norm_name] = installed_lib
+                        installed_lib.required_by.append(req)
 
         dialog = MainDialog(
             libs.values(), self._check_on_startup(), self._check_on_install()
