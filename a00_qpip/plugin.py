@@ -26,6 +26,7 @@ from .utils import (
     icon,
     log,
     run_cmd,
+    run_pip_install,
     warn,
 )
 
@@ -323,6 +324,8 @@ class Plugin:
             "--target",
             str(self.prefix_path),
             "--upgrade",
+            "--progress-bar",
+            "raw",
         ]
 
         # check to see if any dependencies have versions already installed - if it is, we need to propose a restart
@@ -331,13 +334,14 @@ class Plugin:
         )
 
         # run the installed command
-        run_cmd(
+        installed = run_pip_install(
             cmd,
+            reqs_to_install,
             f"installing {len(reqs_to_install)} requirements",
         )
 
         # if the package has been installed before, prompt user to restart
-        if already_installed:
+        if installed and already_installed:
             self.show_restart_message()
 
     def qpip_installed_packages(self):

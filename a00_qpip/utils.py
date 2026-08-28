@@ -10,6 +10,8 @@ from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtWidgets import QMessageBox, QProgressDialog
 from qgis.utils import iface
 
+from .install_progress import PipInstallProgressDialog
+
 
 def log(message):
     QgsMessageLog.logMessage(message, "QPIP", level=Qgis.MessageLevel.Info)
@@ -106,3 +108,44 @@ def run_cmd(args, description="running a system command"):
             f"{description.capitalize()} succeeded",
             level=Qgis.Success,
         )
+
+
+def run_pip_install(args, requirements, description="installing requirements"):
+    """Run one pip install command with per-dependency progress reporting."""
+    dialog = PipInstallProgressDialog(
+        args,
+        requirements,
+        description,
+        log_callback=log,
+        parent=iface.mainWindow(),
+    )
+    return_code, cancelled, full_output = dialog.execute()
+
+    if return_code == 0:
+        log("Command succeeded.")
+        iface.messageBar().pushMessage(
+            "Success",
+            f"{description.capitalize()} succeeded",
+            level=Qgis.Success,
+        )
+        return True
+
+    if cancelled:
+        warn("Dependency installation was cancelled.")
+        iface.messageBar().pushMessage(
+            "Cancelled",
+            "Dependency installation was cancelled",
+            level=Qgis.Warning,
+        )
+        return False
+
+    warn("Command failed.")
+    message = QMessageBox(
+        QMessageBox.Icon.Warning,
+        "Command failed",
+        f"Encountered an error while {description} !",
+        parent=iface.mainWindow(),
+    )
+    message.setDetailedText(full_output)
+    message.exec()
+    return False
