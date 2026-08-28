@@ -110,8 +110,9 @@ class PipInstallProgressDialog(QDialog):
         self.table.item(row, 1).setText(update.status)
 
         if update.total:
-            progress.setRange(0, update.total)
-            progress.setValue(min(update.current or 0, update.total))
+            percentage = min(100, int(100 * (update.current or 0) / update.total))
+            progress.setRange(0, 100)
+            progress.setValue(percentage)
             progress.setTextVisible(True)
         elif update.status in {"Resolving", "Downloading", "Installing", "Using cache"}:
             progress.setRange(0, 0)
@@ -172,6 +173,7 @@ class PipInstallProgressDialog(QDialog):
             self._update_overall()
             self.accept()
         else:
+            self._mark_unfinished("Cancelled" if self.cancelled else "Error")
             self.reject()
 
     def _process_error(self, _error):
@@ -183,13 +185,23 @@ class PipInstallProgressDialog(QDialog):
         self.abort_button.setEnabled(False)
         if self.process.state() == QProcess.ProcessState.NotRunning:
             self.exit_code = -1
+            self._mark_unfinished("Cancelled" if self.cancelled else "Error")
             self.reject()
 
     def _abort(self):
         self.cancelled = True
         self.abort_button.setEnabled(False)
         self.abort_button.setText("Aborting...")
+        self._mark_unfinished("Cancelling")
         self.process.kill()
+
+    def _mark_unfinished(self, status):
+        for row, progress in self.rows.values():
+            if self.table.item(row, 1).text() not in self.COMPLETE_STATUSES:
+                self.table.item(row, 1).setText(status)
+                progress.setRange(0, 1)
+                progress.setValue(0)
+                progress.setTextVisible(False)
 
     def _toggle_details(self, visible):
         self.details.setVisible(visible)
