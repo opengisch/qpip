@@ -110,8 +110,10 @@ def run_cmd(args, description="running a system command"):
         )
 
 
-def run_pip_install(args, requirements, description="installing requirements"):
+def run_pip_install(args, requirements):
     """Run one pip install command with per-dependency progress reporting."""
+    requirement_label = "requirement" if len(requirements) == 1 else "requirements"
+    description = f"installing {len(requirements)} {requirement_label}"
     dialog = PipInstallProgressDialog(
         args,
         requirements,

@@ -1,7 +1,9 @@
 import sys
 
+import pytest
 from qgis.PyQt.QtCore import QTimer
 
+from a00_qpip import utils
 from a00_qpip.install_progress import PipInstallProgressDialog
 from a00_qpip.pip_progress import ProgressUpdate
 
@@ -54,3 +56,40 @@ def test_abort_kills_process_and_marks_dependency_cancelled(qgis_app):
     assert exit_code != 0
     assert cancelled
     assert dialog.table.item(row, 1).text() == "Cancelled"
+
+
+@pytest.mark.parametrize(
+    ("requirements", "expected_description"),
+    [
+        (["numpy>=2"], "installing 1 requirement"),
+        (["numpy>=2", "scipy>=1"], "installing 2 requirements"),
+    ],
+)
+def test_run_pip_install_builds_description_from_requirements(
+    monkeypatch, requirements, expected_description
+):
+    captured = {}
+
+    class FakeDialog:
+        def __init__(self, _args, _requirements, description, **_kwargs):
+            captured["description"] = description
+
+        def execute(self):
+            return 0, False, ""
+
+    class FakeMessageBar:
+        def pushMessage(self, *_args, **_kwargs):
+            pass
+
+    class FakeIface:
+        def mainWindow(self):
+            return None
+
+        def messageBar(self):
+            return FakeMessageBar()
+
+    monkeypatch.setattr(utils, "PipInstallProgressDialog", FakeDialog)
+    monkeypatch.setattr(utils, "iface", FakeIface())
+
+    assert utils.run_pip_install(["python", "-m", "pip"], requirements)
+    assert captured["description"] == expected_description

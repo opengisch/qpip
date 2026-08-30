@@ -337,7 +337,6 @@ class Plugin:
         installed = run_pip_install(
             cmd,
             reqs_to_install,
-            f"installing {len(reqs_to_install)} requirements",
         )
 
         # if the package has been installed before, prompt user to restart
