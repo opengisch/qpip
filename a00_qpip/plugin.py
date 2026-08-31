@@ -226,7 +226,10 @@ class Plugin:
 
                         norm_name = canonicalize_name(requirement.name)
                         installed_lib = normalized_libs.get(norm_name)
-                        if installed_lib is not None and installed_lib.installed_dist is not None:
+                        if (
+                            installed_lib is not None
+                            and installed_lib.installed_dist is not None
+                        ):
                             version = installed_lib.installed_dist.metadata["Version"]
                             if (
                                 requirement.specifier
