@@ -57,6 +57,7 @@ QPIP handles each plugin independently. If two plugins have incomptabile require
 - if requirements are met, the plugin is loaded directly
 - if requirements are not met, the dialog is shown to the user*
   - on confirmation, selected libraries are installed with `pip [...] --prefix USERPROFILE/python/dependencies`
+  - the libraries already provided by the QGIS Python environment are pinned to their installed version (using a pip constraints file), so that their dependencies are not installed in a version that would conflict with the one QGIS uses. If pip finds no solution under those pins, the installation is retried without them.
   - the plugin is then loaded
 
 *during startup (with the `Run QPIP on startup` option), the dialog is deferred to after GUI initialisation

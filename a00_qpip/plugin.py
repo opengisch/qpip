@@ -3,14 +3,15 @@ import platform
 import shutil
 import subprocess
 import sys
+import tempfile
 from collections import defaultdict, namedtuple
 from importlib import metadata
 from pathlib import Path
-from typing import Union
+from typing import List, Union
 
 import qgis
 from packaging.markers import default_environment
-from packaging.requirements import Requirement
+from packaging.requirements import InvalidRequirement, Requirement
 from packaging.utils import canonicalize_name
 from pyplugin_installer import installer
 from qgis.core import QgsApplication, QgsSettings
@@ -21,6 +22,7 @@ from .ui import MainDialog
 from .utils import (
     DistributionNotFound,
     Lib,
+    PipInstallResult,
     Req,
     VersionConflict,
     icon,
@@ -322,10 +324,42 @@ class Plugin:
     def pip_install_reqs(self, reqs_to_install):
         """
         Installs given reqs with pip
+
+        Dependencies already provided by the QGIS Python environment are pinned to
+        their installed version, so we don't end up with two incompatible versions
+        of the same library in the same session. If pip finds no solution under
+        those pins, the installation is retried without them.
         """
         self.prefix_path.mkdir(parents=True, exist_ok=True)
         log(f"Will pip install {reqs_to_install}")
 
+        already_installed = self.check_already_installed(
+            reqs_to_install=reqs_to_install
+        )
+
+        constraints = self.environment_constraints(reqs_to_install)
+
+        result = self.run_constrained_pip_install(
+            reqs_to_install, constraints, report_errors=not constraints
+        )
+        if not result.ok and not result.cancelled and constraints:
+            warn(
+                "Installing with the versions provided by QGIS failed. Retrying "
+                "without them, which may install libraries incompatible with QGIS."
+            )
+            result = self.run_constrained_pip_install(reqs_to_install, [])
+
+        # if the package has been installed before, prompt user to restart
+        if result.ok and already_installed:
+            self.show_restart_message()
+
+    def run_constrained_pip_install(
+        self, reqs_to_install, constraints: List[str], report_errors=True
+    ) -> PipInstallResult:
+        """
+        Runs pip install for the given reqs, optionally under the given
+        constraints, and returns whether it succeeded or was cancelled.
+        """
         cmd = [
             self.python_command(),
             "-um",
@@ -339,20 +373,54 @@ class Plugin:
             "raw",
         ]
 
-        # check to see if any dependencies have versions already installed - if it is, we need to propose a restart
-        already_installed = self.check_already_installed(
-            reqs_to_install=reqs_to_install
-        )
+        with tempfile.TemporaryDirectory(prefix="qpip-") as temp_dir:
+            if constraints:
+                constraints_path = Path(temp_dir) / "constraints.txt"
+                constraints_path.write_text("\n".join(constraints) + "\n")
+                cmd.extend(["--constraint", str(constraints_path)])
+                log(f"Constraining install to {len(constraints)} installed versions")
 
-        # run the installed command
-        installed = run_pip_install(
-            cmd,
-            reqs_to_install,
-        )
+            return run_pip_install(
+                cmd,
+                reqs_to_install,
+                report_errors=report_errors,
+            )
 
-        # if the package has been installed before, prompt user to restart
-        if installed and already_installed:
-            self.show_restart_message()
+    def environment_constraints(self, reqs_to_install) -> List[str]:
+        """
+        Returns pip constraints pinning the libraries provided by the QGIS Python
+        environment to the version currently installed.
+
+        Without those, installing into the QPIP folder resolves the dependencies of
+        the requirements to their latest version, which then shadow the ones shipped
+        with QGIS and may be incompatible with them.
+
+        Libraries installed by QPIP itself and libraries explicitly requested by a
+        plugin are left out, so they can still be installed or upgraded freely.
+        """
+        requested = {
+            canonicalize_name(Requirement(req).name) for req in reqs_to_install
+        }
+
+        # metadata.distributions() follows sys.path order, so the first distribution
+        # found for a library is the one that gets imported
+        constraints = {}
+        for dist in metadata.distributions():
+            name = dist.metadata["Name"]
+            version = dist.metadata["Version"]
+            if not name or not version:
+                continue
+            key = canonicalize_name(name)
+            if key in requested or key in constraints:
+                continue
+            if Path(str(dist._path)).parent == self.site_packages_path:
+                continue
+            try:
+                constraints[key] = str(Requirement(f"{name}=={version}"))
+            except InvalidRequirement:
+                log(f"Cannot pin {name} to version {version}. Skipping...")
+
+        return sorted(constraints.values(), key=str.lower)
 
     def qpip_installed_packages(self):
         return [

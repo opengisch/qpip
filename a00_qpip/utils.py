@@ -1,5 +1,6 @@
 import os
 import subprocess
+from collections import namedtuple
 from importlib.metadata import Distribution
 from subprocess import PIPE, STDOUT, Popen
 from typing import List, Union
@@ -11,6 +12,8 @@ from qgis.PyQt.QtWidgets import QMessageBox, QProgressDialog
 from qgis.utils import iface
 
 from .install_progress import PipInstallProgressDialog
+
+PipInstallResult = namedtuple("PipInstallResult", ["ok", "cancelled"])
 
 
 def log(message):
@@ -48,7 +51,14 @@ def icon(name):
     return QIcon(os.path.join(os.path.dirname(__file__), "icons", name))
 
 
-def run_cmd(args, description="running a system command"):
+def run_cmd(args, description="running a system command", report_errors=True) -> bool:
+    """
+    Runs a command, showing a progress dialog.
+
+    Returns whether the command succeeded. Failures are reported to the user
+    unless `report_errors` is False, which allows the caller to retry with
+    another command before bothering the user.
+    """
     progress_dlg = QProgressDialog(
         description, "Abort", 0, 0, parent=iface.mainWindow()
     )
@@ -92,15 +102,16 @@ def run_cmd(args, description="running a system command"):
     progress_dlg.close()
 
     if process.returncode != 0:
-        warn(f"Command failed.")
-        message = QMessageBox(
-            QMessageBox.Icon.Warning,
-            "Command failed",
-            f"Encountered an error while {description} !",
-            parent=iface.mainWindow(),
-        )
-        message.setDetailedText(full_output)
-        message.exec()
+        warn("Command failed.")
+        if report_errors:
+            message = QMessageBox(
+                QMessageBox.Icon.Warning,
+                "Command failed",
+                f"Encountered an error while {description} !",
+                parent=iface.mainWindow(),
+            )
+            message.setDetailedText(full_output)
+            message.exec()
     else:
         log("Command succeeded.")
         iface.messageBar().pushMessage(
@@ -109,8 +120,10 @@ def run_cmd(args, description="running a system command"):
             level=Qgis.Success,
         )
 
+    return process.returncode == 0
 
-def run_pip_install(args, requirements):
+
+def run_pip_install(args, requirements, report_errors=True) -> PipInstallResult:
     """Run one pip install command with per-dependency progress reporting."""
     requirement_label = "requirement" if len(requirements) == 1 else "requirements"
     description = f"installing {len(requirements)} {requirement_label}"
@@ -130,7 +143,7 @@ def run_pip_install(args, requirements):
             f"{description.capitalize()} succeeded",
             level=Qgis.Success,
         )
-        return True
+        return PipInstallResult(True, False)
 
     if cancelled:
         warn("Dependency installation was cancelled.")
@@ -139,15 +152,16 @@ def run_pip_install(args, requirements):
             "Dependency installation was cancelled",
             level=Qgis.Warning,
         )
-        return False
+        return PipInstallResult(False, True)
 
     warn("Command failed.")
-    message = QMessageBox(
-        QMessageBox.Icon.Warning,
-        "Command failed",
-        f"Encountered an error while {description} !",
-        parent=iface.mainWindow(),
-    )
-    message.setDetailedText(full_output)
-    message.exec()
-    return False
+    if report_errors:
+        message = QMessageBox(
+            QMessageBox.Icon.Warning,
+            "Command failed",
+            f"Encountered an error while {description} !",
+            parent=iface.mainWindow(),
+        )
+        message.setDetailedText(full_output)
+        message.exec()
+    return PipInstallResult(False, False)

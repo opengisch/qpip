@@ -91,5 +91,5 @@ def test_run_pip_install_builds_description_from_requirements(
     monkeypatch.setattr(utils, "PipInstallProgressDialog", FakeDialog)
     monkeypatch.setattr(utils, "iface", FakeIface())
 
-    assert utils.run_pip_install(["python", "-m", "pip"], requirements)
+    assert utils.run_pip_install(["python", "-m", "pip"], requirements).ok
     assert captured["description"] == expected_description
